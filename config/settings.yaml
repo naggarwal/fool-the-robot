@@ -1,0 +1,66 @@
+# Runtime tunables. Everything the live sliders adjust also lives here as a
+# starting default. Calibrated empirically against real objects (PRD 5.2b).
+
+model:
+  name: "ViT-B-32"
+  pretrained: "openai"          # open_clip pretrained tag
+  prompt_template: "a photo of {}"
+
+# --- Confidence calibration (the make-or-break knobs) ---
+calibration:
+  # Effective logit scale applied to cosine sims before softmax.
+  # CLIP's built-in scale is ~100 and makes everything read 99%. Start gentle.
+  temperature: 15.0             # effective logit scale (higher = peakier)
+  # Raw cosine similarity floor for the top display label. Below this the
+  # system declares "unknown" regardless of relative ranking.
+  similarity_floor: 0.22
+  # Familiarity meter mapping: raw top-label cosine sim -> 0..100 display.
+  # fam_low_sim maps to 0 (unfamiliar), fam_high_sim maps to 100 (very familiar).
+  fam_low_sim: 0.20
+  fam_high_sim: 0.30
+
+# --- Confidence bands (percent of calibrated top-1) ---
+bands:
+  confident_min: 70             # >= 70% -> confident
+  confused_max: 40              # < 40%  -> confused ; between -> hedging
+                                # (raw sim < similarity_floor -> unknown, overrides)
+
+# --- Camera ---
+camera:
+  index: 0
+  width: 1280
+  height: 720
+  fps: 30
+  lock_autofocus: true
+  autofocus_value: 0            # 0 = off (fixed focus)
+  lock_exposure: true
+  # CAP_PROP_AUTO_EXPOSURE: 0.25 = manual on many macOS UVC cams, 0.75 = auto
+  auto_exposure_value: 0.25
+  exposure_value: -6            # only applied if lock_exposure
+  mirror: true                  # server sends mirrored frames; frontend must NOT flip again
+
+# --- Detection region (the "object zone") ---
+# A centered box drawn on the video AND the only part CLIP classifies. Holding
+# the object inside it fills the frame -> higher, more honest confidence, and
+# matches the booth's taped object zone (PRD 4.2 / 5.6). Fractions of the frame.
+detection_region:
+  enabled: true
+  width_frac: 0.6
+  height_frac: 0.8
+
+# --- Inference loop ---
+inference:
+  every_n_frames: 3             # run CLIP on every Nth captured frame
+  ema_window: 5                 # temporal smoothing over last N inferences
+  ema_alpha: 0.5                # weight of newest result in EMA
+  stability_seconds: 1.0        # top-1 must hold this long before "announcing"
+  ws_push_hz: 10                # max WebSocket result pushes per second
+
+# --- Presence detection (simple, keeps classifier out of it) ---
+presence:
+  enabled: true
+  edge_density_min: 0.02        # below -> treat frame as empty background
+
+server:
+  host: "127.0.0.1"
+  port: 8000

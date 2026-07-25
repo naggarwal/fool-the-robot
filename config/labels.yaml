@@ -1,0 +1,70 @@
+# Object vocabulary for CLIP zero-shot classification.
+# `display: true`  -> shown as a guess in the UI.
+# `display: false` -> anchor/rejection label; absorbs probability mass for
+#                     "none of the above", never shown. See PRD 5.2b.
+#
+# Each entry's CLIP text prompt is built as: "a photo of {prompt}".
+# Near-neighbor sets (shoe family, ball family) are intentional — they make
+# confusion easy and instructive.
+
+display:
+  # footwear near-neighbor set (intentional confusers)
+  - {label: "sneaker",        prompt: "a sneaker"}
+  - {label: "dress shoe",     prompt: "a dress shoe"}
+  - {label: "boot",           prompt: "a boot"}
+  - {label: "sandal",         prompt: "a sandal"}
+  # fruit / food
+  - {label: "banana",         prompt: "a banana"}
+  - {label: "apple",          prompt: "an apple"}
+  - {label: "orange",         prompt: "an orange"}
+  - {label: "corn cob",       prompt: "a corn cob"}
+  # ball near-neighbor set
+  - {label: "soccer ball",    prompt: "a soccer ball"}
+  - {label: "basketball",     prompt: "a basketball"}
+  - {label: "tennis ball",    prompt: "a tennis ball"}
+  - {label: "baseball",       prompt: "a baseball"}
+  # everyday kid objects
+  - {label: "water bottle",   prompt: "a water bottle"}
+  - {label: "backpack",       prompt: "a backpack"}
+  - {label: "hat",            prompt: "a hat"}
+  - {label: "baseball cap",   prompt: "a baseball cap"}
+  - {label: "phone",          prompt: "a smartphone"}
+  - {label: "book",           prompt: "a book"}
+  - {label: "pencil",         prompt: "a pencil"}
+  - {label: "pen",            prompt: "a pen"}
+  - {label: "marker",         prompt: "a marker pen"}
+  - {label: "crayon",         prompt: "a crayon"}
+  - {label: "scissors",       prompt: "a pair of scissors"}
+  - {label: "glue stick",     prompt: "a glue stick"}
+  - {label: "eraser",         prompt: "an eraser"}
+  - {label: "ruler",          prompt: "a ruler"}
+  - {label: "sunglasses",     prompt: "a pair of sunglasses"}
+  - {label: "glasses",        prompt: "a pair of eyeglasses"}
+  - {label: "LEGO brick",     prompt: "a LEGO brick"}
+  - {label: "stuffed animal", prompt: "a stuffed animal toy"}
+  - {label: "toy car",        prompt: "a toy car"}
+  - {label: "key",            prompt: "a key"}
+  - {label: "coin",           prompt: "a coin"}
+  - {label: "glove",          prompt: "a glove"}
+  - {label: "sock",           prompt: "a sock"}
+  - {label: "umbrella",       prompt: "an umbrella"}
+  - {label: "headphones",     prompt: "a pair of headphones"}
+  - {label: "mug",            prompt: "a coffee mug"}
+  - {label: "spoon",          prompt: "a spoon"}
+  - {label: "fork",           prompt: "a fork"}
+  - {label: "toothbrush",     prompt: "a toothbrush"}
+  - {label: "banana (toy)",   prompt: "a toy banana"}
+
+# Anchor / rejection labels — never displayed. Probability mass here is the
+# model's implicit "none of the above." Keeps confident-wrong answers down.
+anchors:
+  - {prompt: "a random object"}
+  - {prompt: "an unidentifiable thing"}
+  - {prompt: "a blurry photo"}
+  - {prompt: "a close-up of a texture"}
+  - {prompt: "a person's hand"}
+  - {prompt: "a piece of clothing"}
+  - {prompt: "an empty background"}
+  - {prompt: "a wall"}
+  - {prompt: "a messy pile of things"}
+  - {prompt: "something unusual"}

@@ -1,0 +1,16 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Local runtime logs / caches
+.install.log
+.server.log
+data/
+
+# OS
+.DS_Store
+
+# Secrets (voice API keys land here in later phases — never commit)
+.env
+*.key

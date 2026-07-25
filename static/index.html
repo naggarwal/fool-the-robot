@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Can You Fool the Robot?</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div id="stage">
+    <!-- LEFT ~55%: live mirrored MJPEG feed (do NOT flip in CSS) -->
+    <section id="feed">
+      <img id="video" src="/video" alt="live camera">
+      <div id="reticle"></div>
+      <div id="conn" class="conn conn--down">connecting…</div>
+    </section>
+
+    <!-- RIGHT ~45%: guess + bars + familiarity + tuning -->
+    <section id="panel">
+
+      <!-- Primary guess -->
+      <div id="guess" class="band-idle">
+        <div id="caption">Starting up…</div>
+        <div id="primary">—</div>
+      </div>
+
+      <!-- Confidence bars: "which of my guesses?" -->
+      <div id="bars-block">
+        <div class="section-label">My best guesses</div>
+        <div id="bars"><!-- rows injected --></div>
+      </div>
+
+      <!-- Familiarity meter: SEPARATE question, distinct shape -->
+      <div id="fam-block">
+        <div class="section-label">Does this look familiar to me?</div>
+        <div id="fam">
+          <svg id="fam-arc" viewBox="0 0 200 118" preserveAspectRatio="xMidYMid meet">
+            <path class="fam-track" d="M 16 108 A 84 84 0 0 1 184 108" pathLength="100"/>
+            <path id="fam-fill" class="fam-fill" d="M 16 108 A 84 84 0 0 1 184 108" pathLength="100"/>
+            <line id="fam-needle" x1="100" y1="108" x2="100" y2="34" />
+            <circle cx="100" cy="108" r="7" class="fam-hub"/>
+          </svg>
+          <div id="fam-readout">
+            <span id="fam-word">—</span>
+            <span id="fam-sub">familiarity</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Idle overlay -->
+      <div id="idle" class="hidden">
+        <div class="idle-emoji">👀</div>
+        <div class="idle-text">Show me something!</div>
+        <div class="idle-sub">Hold an object up to the camera.</div>
+      </div>
+
+      <!-- Tuning panel (collapsible, visible by default) -->
+      <details id="tuning" open>
+        <summary>Tuning <span class="raw-readout"><code id="raw-label">—</code> · sim <code id="raw-sim">—</code></span></summary>
+        <div class="tune-grid">
+          <label>Temperature <output id="out-temperature">15</output>
+            <input type="range" id="s-temperature" data-field="temperature" min="5" max="40" step="0.5" value="15">
+          </label>
+          <label>Similarity floor <output id="out-floor">0.220</output>
+            <input type="range" id="s-floor" data-field="floor" min="0.10" max="0.35" step="0.005" value="0.22">
+          </label>
+          <label>Fam low sim <output id="out-fam_low_sim">0.200</output>
+            <input type="range" id="s-fam_low_sim" data-field="fam_low_sim" min="0.10" max="0.35" step="0.005" value="0.20">
+          </label>
+          <label>Fam high sim <output id="out-fam_high_sim">0.300</output>
+            <input type="range" id="s-fam_high_sim" data-field="fam_high_sim" min="0.20" max="0.40" step="0.005" value="0.30">
+          </label>
+          <label>Confident min <output id="out-confident_min">70</output>
+            <input type="range" id="s-confident_min" data-field="confident_min" min="50" max="90" step="1" value="70">
+          </label>
+          <label>Confused max <output id="out-confused_max">40</output>
+            <input type="range" id="s-confused_max" data-field="confused_max" min="20" max="55" step="1" value="40">
+          </label>
+        </div>
+      </details>
+
+    </section>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
