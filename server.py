@@ -41,6 +41,8 @@ BASE_DIR = Path(__file__).resolve().parent
 SETTINGS_PATH = BASE_DIR / "config" / "settings.yaml"
 LABELS_PATH = BASE_DIR / "config" / "labels.yaml"
 STATIC_DIR = BASE_DIR / "static"
+CALIB_DIR = BASE_DIR / "calib"
+MANIFEST_PATH = CALIB_DIR / "manifest.json"
 
 
 def _load_yaml(path: Path) -> dict:
@@ -132,10 +134,28 @@ class StubClassifier:
             self.confused_max = float(confused_max)
 
 
+# Set when the booth is running on random numbers instead of CLIP. Surfaced in
+# every WS frame so the UI can shout about it -- see _make_classifier.
+USING_STUB = False
+STUB_REASON = ""
+
+
 def _make_classifier():
-    """Real Classifier unless FOOLBOT_STUB=1 or the import/init fails."""
+    """Real Classifier unless explicitly stubbed.
+
+    This used to fall back to StubClassifier on ANY exception with only a
+    log.warning. That is the worst possible behaviour for a live booth: the
+    stub returns plausible random guesses with the identical schema, so a CLIP
+    load failure on event day would produce a demo that runs happily for three
+    hours and is entirely fake, with nothing on screen to give it away.
+
+    Now it fails loudly at startup -- which surfaces during the 12:00 setup
+    window rather than mid-event -- unless the operator opts in deliberately.
+    """
+    global USING_STUB, STUB_REASON
     if os.environ.get("FOOLBOT_STUB") == "1":
-        log.info("FOOLBOT_STUB=1 -> using StubClassifier.")
+        log.warning("FOOLBOT_STUB=1 -> StubClassifier (RANDOM guesses, not CLIP).")
+        USING_STUB, STUB_REASON = True, "FOOLBOT_STUB=1 set deliberately"
         return StubClassifier()
     try:
         from foolbot.classifier import Classifier
@@ -144,17 +164,30 @@ def _make_classifier():
             labels_path=str(LABELS_PATH), settings_path=str(SETTINGS_PATH)
         )
     except Exception as exc:
-        log.warning("Real Classifier unavailable (%s) -> StubClassifier.", exc)
-        return StubClassifier()
+        if os.environ.get("FOOLBOT_ALLOW_STUB") == "1":
+            log.error(
+                "Real Classifier unavailable (%s) -> DEGRADED to StubClassifier. "
+                "Guesses are RANDOM. FOOLBOT_ALLOW_STUB=1 permitted this.", exc
+            )
+            USING_STUB, STUB_REASON = True, f"CLIP failed to load: {exc}"
+            return StubClassifier()
+        log.critical("Real Classifier failed to load: %s", exc)
+        raise RuntimeError(
+            f"CLIP classifier failed to load ({exc}). Refusing to start: the "
+            f"fallback emits RANDOM guesses that look identical to real ones. "
+            f"Fix the model load, or set FOOLBOT_ALLOW_STUB=1 to run a knowingly "
+            f"fake booth (a red banner will be shown on screen)."
+        ) from exc
 
 
 # ===========================================================================
 # Shared engine: capture thread + inference thread + latest result
 # ===========================================================================
 class Engine:
-    def __init__(self, settings: dict, classifier):
+    def __init__(self, settings: dict, classifier, voice=None):
         self.settings = settings
         self.classifier = classifier
+        self.voice = voice
         self.camera = Camera(settings)
 
         inf = settings.get("inference", {})
@@ -178,6 +211,22 @@ class Engine:
         self._ema: dict[str, float] = {}
         self._stop = threading.Event()
         self._threads: list[threading.Thread] = []
+
+        # --- announce gate (PRD 5.3) ---------------------------------------
+        # stability_seconds was configured but never used. The robot must not
+        # narrate every flicker while a child waves an object around, so a
+        # top-1 label has to hold for this long before it is worth speaking.
+        self.stability_seconds = float(inf.get("stability_seconds", 1.0))
+        self.attract_after_s = float(inf.get("attract_after_s", 30.0))
+        # Without this the barker re-fires every inference tick once the booth
+        # is idle, and the voice cooldown alone would let it speak every ~2.5s
+        # for three hours. It is a barker line, not a loop.
+        self.attract_interval_s = float(inf.get("attract_interval_s", 60.0))
+        self._last_attract_at: float = 0.0
+        self._stable_label: str | None = None
+        self._stable_since: float = 0.0
+        self._last_present_at: float = time.time()
+        self._spoken_text: str | None = None
 
     # ------------------------------------------------------------- lifecycle
     def start(self) -> None:
@@ -225,14 +274,63 @@ class Engine:
                         with self._lock:
                             self._present = True
                             self._result = smoothed
+                        self._last_present_at = time.time()
+                        self._maybe_announce(smoothed)
                     except Exception as exc:
                         log.exception("classify() failed: %s", exc)
                 else:
                     with self._lock:
                         self._present = False
+                    self._stable_label = None
+                    self._maybe_attract()
             dt = time.time() - t0
             if dt < period:
                 self._stop.wait(period - dt)
+
+    # --------------------------------------------------------------- voice
+    def _maybe_announce(self, result: dict) -> None:
+        """Speak the band once the top-1 label has held for stability_seconds.
+
+        Re-requests on EVERY stable frame rather than only on change. The voice
+        engine drops (does not defer) anything inside its cooldown, so a
+        speak-on-transition-only design would let an object go permanently
+        unvoiced if its one transition happened to land in a cooldown window.
+        """
+        if self.voice is None:
+            return
+        top5 = result.get("top5") or []
+        if not top5:
+            return
+        label = top5[0]["label"]
+        now = time.time()
+        if label != self._stable_label:
+            self._stable_label = label
+            self._stable_since = now
+            return
+        if now - self._stable_since < self.stability_seconds:
+            return
+        try:
+            spoken = self.voice.speak(result.get("band", "confused"), label)
+        except Exception as exc:  # audio must never take the booth down
+            log.warning("voice.speak failed: %s", exc)
+            return
+        if spoken:
+            self._spoken_text = spoken
+
+    def _maybe_attract(self) -> None:
+        """Barker line at an empty booth. Lowest priority; anything outranks it."""
+        if self.voice is None:
+            return
+        now = time.time()
+        if now - self._last_present_at < self.attract_after_s:
+            return
+        if now - self._last_attract_at < self.attract_interval_s:
+            return
+        try:
+            if self.voice.speak("attract"):
+                self._last_attract_at = now
+        except Exception as exc:
+            log.warning("voice.speak(attract) failed: %s", exc)
 
     # --------------------------------------------------------------- region
     def _crop_region(self, frame: np.ndarray) -> np.ndarray:
@@ -298,13 +396,24 @@ class Engine:
 # ===========================================================================
 app = FastAPI(title="Fool the Robot")
 engine: Engine | None = None
+voice = None  # foolbot.voice.VoiceEngine | None
 
 
 @app.on_event("startup")
 def _startup() -> None:
-    global engine
+    global engine, voice
     classifier = _make_classifier()
-    engine = Engine(SETTINGS, classifier)
+    # Audio is a nice-to-have: a silent booth still demonstrates the lesson,
+    # so a voice failure must never stop the server from starting.
+    try:
+        from foolbot.voice import from_config
+
+        voice = from_config().start()
+        log.info("Voice engine started (%s).", voice.status().get("tier"))
+    except Exception as exc:
+        log.warning("Voice unavailable (%s) -> running silent.", exc)
+        voice = None
+    engine = Engine(SETTINGS, classifier, voice=voice)
     engine.start()
     log.info("Engine started.")
 
@@ -313,11 +422,31 @@ def _startup() -> None:
 def _shutdown() -> None:
     if engine is not None:
         engine.stop()
+    if voice is not None:
+        try:
+            voice.shutdown()
+        except Exception as exc:
+            log.warning("voice.shutdown failed: %s", exc)
 
 
 # static mount (dir may not exist yet while Agent C works — create-safe)
 if STATIC_DIR.is_dir():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+@app.middleware("http")
+async def _no_cache_static(request, call_next):
+    """Never let the booth serve a stale style.css / app.js.
+
+    Chrome 304'd style.css during calibration and silently ran an old
+    stylesheet against new markup, which read as "the fix didn't work".
+    The UI is edited live during setup, so correctness beats caching here.
+    """
+    response = await call_next(request)
+    if request.url.path.startswith("/static") or request.url.path == "/":
+        response.headers["Cache-Control"] = "no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+    return response
 
 
 @app.get("/health")
@@ -361,6 +490,117 @@ def video() -> StreamingResponse:
     )
 
 
+@app.get("/debug/capture")
+def debug_capture(
+    label: str,
+    cls: str = "clear",
+    n: int = 10,
+    seconds: float = 3.0,
+) -> JSONResponse:
+    """Capture a burst of N classified-region crops for offline calibration.
+
+    Saves the EXACT crop the inference loop sees (pristine frame, no reticle)
+    to calib/<label>__<i>.png and appends one manifest record per frame with
+    the operator-supplied ground truth. Returns per-frame shape + raw_top_sim
+    so a black/empty capture is visible immediately rather than at sweep time.
+
+    cls is the scoring class used by scripts/calibrate.py:
+      clear | near-neighbor | out-of-vocab | empty
+    """
+    # PRD §6 / §9.1: "No images are ever written to disk" is a hard architectural
+    # constraint for the event. This endpoint exists only for pre-event
+    # calibration and MUST be unreachable at the booth, so it is opt-in via an
+    # env var that the kiosk launcher never sets.
+    if os.environ.get("FOOLBOT_DEBUG") != "1":
+        return JSONResponse(
+            {"ok": False,
+             "error": "disabled: /debug/capture writes frames to disk and is "
+                      "off unless FOOLBOT_DEBUG=1 (see PRD 9.1)"},
+            status_code=403,
+        )
+    if engine is None:
+        return JSONResponse({"ok": False, "error": "engine not started"}, status_code=503)
+    valid_cls = ("clear", "near-neighbor", "out-of-vocab", "empty")
+    if cls not in valid_cls:
+        return JSONResponse(
+            {"ok": False, "error": f"cls must be one of {valid_cls}"}, status_code=400
+        )
+
+    CALIB_DIR.mkdir(exist_ok=True)
+    slug = "".join(c if c.isalnum() else "-" for c in label.lower()).strip("-")
+    gap = max(seconds, 0.0) / max(n, 1)
+
+    frames: list[dict] = []
+    existing = len(list(CALIB_DIR.glob(f"{slug}__*.png")))
+    for i in range(n):
+        frame = engine.camera.latest_frame()
+        if frame is None:
+            frames.append({"i": i, "error": "no frame from camera"})
+            time.sleep(gap)
+            continue
+        crop = engine._crop_region(frame)
+        fname = f"{slug}__{existing + i:03d}.png"
+        cv2.imwrite(str(CALIB_DIR / fname), crop)
+
+        gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+        edges = cv2.Canny(gray, 80, 160)
+        rec: dict = {
+            "file": fname,
+            "true_label": label,
+            "cls": cls,
+            "shape": list(crop.shape),
+            "mean_px": round(float(crop.mean()), 2),
+            # presence gate inputs: a smooth, light object on a light wall can
+            # fall under edge_density_min and be treated as an empty zone.
+            "edge_density": round(float(np.count_nonzero(edges)) / edges.size, 5),
+            "passes_presence": bool(
+                float(np.count_nonzero(edges)) / edges.size >= engine.edge_density_min
+            ),
+        }
+        try:
+            res = engine.classifier.classify(crop)
+            rec["raw_top_sim"] = round(float(res["raw_top_sim"]), 4)
+            rec["raw_top_label"] = res["raw_top_label"]
+            # anchor-margin instrumentation (calibration doc Finding 1) -- the
+            # candidate replacement signal for out-of-vocab detection
+            rec["raw_anchor_sim"] = round(float(res.get("raw_anchor_sim", 0.0)), 4)
+            rec["anchor_margin"] = round(float(res.get("anchor_margin", 0.0)), 4)
+            # unsmoothed, full-precision top5 -- NOT the EMA'd values the UI shows
+            rec["top5"] = [{"label": d["label"], "pct": round(float(d["pct"]), 2)}
+                           for d in res["top5"]]
+            rec["band"] = res["band"]
+            rec["familiarity"] = round(float(res["familiarity"]), 1)
+            # tuning in force for this capture, so every record is self-documenting
+            rec["tuning"] = {k: res[k] for k in
+                             ("temperature", "floor", "fam_low_sim", "fam_high_sim")}
+        except Exception as exc:  # pragma: no cover - debug path
+            rec["error"] = f"classify failed: {exc}"
+        frames.append(rec)
+        time.sleep(gap)
+
+    # Append to the manifest (read-modify-write; this endpoint is operator-driven
+    # and single-user, so no locking beyond the GIL is warranted).
+    manifest: list[dict] = []
+    if MANIFEST_PATH.is_file():
+        try:
+            manifest = json.loads(MANIFEST_PATH.read_text())
+        except json.JSONDecodeError:
+            log.warning("manifest.json unreadable; starting fresh")
+    manifest.extend([f for f in frames if "file" in f])
+    MANIFEST_PATH.write_text(json.dumps(manifest, indent=2))
+
+    sims = [f["raw_top_sim"] for f in frames if "raw_top_sim" in f]
+    return JSONResponse({
+        "ok": bool(sims),
+        "label": label,
+        "cls": cls,
+        "captured": len(sims),
+        "raw_top_sim_range": [min(sims), max(sims)] if sims else None,
+        "total_in_manifest": len(manifest),
+        "frames": frames,
+    })
+
+
 @app.websocket("/ws")
 async def ws(websocket: WebSocket) -> None:
     await websocket.accept()
@@ -388,10 +628,33 @@ async def ws(websocket: WebSocket) -> None:
             if result is None:
                 payload = {"type": "result", "present": bool(present), "top5": [],
                            "familiarity": 0.0, "band": "unknown"}
+                # the operator panel must show the live config even with an
+                # empty zone, so the numbers can never silently go stale
+                clf = engine.classifier if engine else None
+                if clf is not None:
+                    payload.update({
+                        "temperature": float(getattr(clf, "temperature", 0.0)),
+                        "floor": float(getattr(clf, "floor", 0.0)),
+                        "fam_low_sim": float(getattr(clf, "fam_low_sim", 0.0)),
+                        "fam_high_sim": float(getattr(clf, "fam_high_sim", 0.0)),
+                    })
             else:
                 payload = {"type": "result", "present": bool(present), **result}
                 if not present:
                     payload["top5"] = []
+            # Caption the line the speaker ACTUALLY said (speak() returns the
+            # text only when accepted), so the screen can never claim audio the
+            # child never heard.
+            if engine is not None:
+                payload["spoken"] = engine._spoken_text
+            if voice is not None:
+                st = voice.status()
+                payload["voice"] = {"tier": st.get("tier"), "muted": st.get("muted"),
+                                    "speaking": st.get("speaking")}
+            # A fake booth must never look like a real one.
+            payload["stub"] = USING_STUB
+            if USING_STUB:
+                payload["stub_reason"] = STUB_REASON
             await websocket.send_text(json.dumps(payload))
             await asyncio.sleep(push_period)
     except WebSocketDisconnect:

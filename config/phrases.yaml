@@ -1,0 +1,98 @@
+# Spoken line templates, grouped by state (PRD 5.4 / 9.5).
+#
+# EVERY line the robot can possibly say lives here. There is no generative text
+# at runtime. Copy review rules (PRD 9.6) that are enforced in code by
+# foolbot.voice.load_phrases() -- edits that break them fail loudly at startup:
+#
+#   1. `{label}` may appear AT MOST ONCE in a line. The robot never speaks two
+#      labels in one line (the runner-up is on screen). Otherwise the
+#      pre-generated cache becomes label x label instead of template x label.
+#   2. No digits and no "%" anywhere. The robot never speaks a raw percentage --
+#      it speaks the confidence BAND in words. The number is on screen, where it
+#      is a thing to read and compare, not to listen to. This is what keeps the
+#      cache finitely enumerable (templates x labels).
+#   3. Only the LABEL_STATES (confident, hedging, fooled) may contain `{label}`.
+#      attract / confused / celebration must be label-free: in the `confused`
+#      and `unknown` bands there is by definition no label worth speaking.
+#
+# Tone (PRD 9.6): friendly, curious, a little goofy. Never smug, never
+# condescending. When fooled, DELIGHTED, not defeated. No line may make a child
+# feel foolish, wrong, or bad at the task. Audience is roughly six to twelve.
+#
+# Assume a child stands at the booth for ten minutes and WILL notice repeats:
+# keep at least six variants per state, and add more freely -- pregeneration is
+# incremental, so new lines cost only their own characters.
+
+# Attract mode: nobody is at the booth. Barker lines, said to an empty table.
+attract:
+  - "Hello! I am a robot that guesses what things are. Can you show me something?"
+  - "I love guessing. Bring me an object and let us see if I can figure it out."
+  - "Psst. Over here. I bet I can guess what you are holding."
+  - "My camera is on and my brain is ready. Show me something tricky!"
+  - "Nobody has fooled me in a while. Do you think you could?"
+  - "Hold something up in front of my camera and I will tell you what I think it is."
+  - "I am a guessing robot. Guessing is my whole job. Please give me a job!"
+  - "Do you have something in your pocket? Show it to me. I want to guess."
+  - "Come closer! I promise I only look at objects, never at people."
+
+# High confidence. Brisk delivery.
+confident:
+  - "Oh, that one is easy. It is a {label}."
+  - "I am pretty sure that is a {label}."
+  - "Aha! A {label}. I have seen those before."
+  - "That looks like a {label} to me, and I feel good about it."
+  - "My circuits say {label}, and my circuits are feeling confident."
+  - "Easy one! That is a {label}."
+  - "I would bet my batteries that is a {label}."
+  - "Got it. That is a {label}, no question."
+  - "A {label}! I like those. I know those."
+
+# Middle band. Drawn out, uncertain, thinking out loud.
+hedging:
+  - "Hmmm. I think maybe it is a {label}? But it might be something else."
+  - "I want to say {label}. But please do not hold me to that."
+  - "Could that be a {label}? I am only sort of sure."
+  - "My best guess is a {label}, but I am wobbling a little."
+  - "Maybe a {label}? Something about it is confusing me."
+  - "I see something like a {label}. Something like it. Not exactly it."
+  - "Ooh, tricky. I will guess {label}, but I could be wrong."
+  - "Is that a {label}? Ask me again in a second. I might change my mind."
+  - "Leaning toward {label}. Only leaning, though."
+
+# Low confidence or unknown. Exclamatory, delighted by the mystery, never
+# frustrated. Label-free on purpose: there is nothing trustworthy to name.
+confused:
+  - "Wait. What? Now I have no idea what that is!"
+  - "Whoa. My brain just went completely blank."
+  - "Nope. No clue. Not even a little clue."
+  - "That is a total mystery to me, and I love it."
+  - "I have got nothing! What even is that?"
+  - "Hmm. Hmm. Hmm. Nope, I am stumped."
+  - "That does not look like anything I have learned yet."
+  - "I am officially puzzled, and that is a great feeling."
+  - "My guessing machine just shrugged. I did not know it could do that."
+
+# The child successfully fooled the robot. DELIGHTED, never defeated. `{label}`
+# is the thing the robot wrongly believed it saw.
+fooled:
+  - "You got me! I really thought that was a {label}."
+  - "Wow, you fooled me. I was so sure it was a {label}."
+  - "Ha! I said {label} and I was completely wrong. Amazing."
+  - "Incredible. My brain went straight to {label}, and my brain was wrong."
+  - "Oh no, you tricked me! I fell for {label} completely."
+  - "That is so cool. You made me see a {label} that was not even there."
+  - "I am impressed. You turned that into a {label} right in front of me."
+  - "Fooled! I really, really thought {label}. Teach me your ways."
+  - "You bent my brain. All I could see was a {label}."
+
+# After a fool is recorded on the leaderboard. Reward, then invite another try.
+celebration:
+  - "Add that one to the list. Another thing that fooled a robot."
+  - "That goes straight onto my Fooled Me board. Nicely done."
+  - "You are officially a robot fooler. Take a bow."
+  - "Scientists spend years figuring out how to trick robots like me. You just did it."
+  - "That is going into my memory banks as a good one."
+  - "High five! Well, imagine a high five. I do not have hands."
+  - "Another one for the board. You are good at this."
+  - "Beautiful trick. Do you want to try another one?"
+  - "That was clever. I would not have thought of that, and I think for a living."

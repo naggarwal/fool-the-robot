@@ -8,9 +8,18 @@ __pycache__/
 .server.log
 data/
 
+# Calibration captures — webcam frames of whoever ran the pass, and they're
+# room/lighting-specific so they don't transfer. The manifest (numbers + ground
+# truth) is the part worth keeping, so it is NOT ignored.
+calib/*.png
+
 # OS
 .DS_Store
 
 # Secrets (voice API keys land here in later phases — never commit)
 .env
 *.key
+
+# Pre-generated TTS cache — a full render is ~1161 files / 61k chars of audio.
+# Regenerable from config/phrases.yaml + labels.yaml via scripts/pregenerate_voice.py.
+cache/

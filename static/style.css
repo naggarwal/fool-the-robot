@@ -33,17 +33,28 @@ html, body {
   width: 100vw;
 }
 
-/* ===== LEFT: video feed ===== */
+/* ===== LEFT: camera (top half) + robot face (bottom half) ===== */
+#left {
+  flex: 0 0 55%;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
 #feed {
   position: relative;
-  flex: 0 0 55%;
+  flex: 1 1 50%;
   background: #000;
   display: flex; align-items: center; justify-content: center;
   overflow: hidden;
+  min-height: 0;
 }
 #video {
   width: 100%; height: 100%;
-  object-fit: cover;
+  /* contain, not cover: the feed pane is now half height, and cover would crop
+     the bottom of the taped object zone right off the screen. The operator has
+     to be able to see the whole detection region. */
+  object-fit: contain;
   display: block;
   /* NO scaleX flip — frames are already mirrored server-side */
 }
@@ -76,6 +87,9 @@ html, body {
   gap: 1.2vh;
   min-width: 0;
   min-height: 0;
+  /* The panel itself scrolls, not the document — that is what lets the tuning
+     block stick to the panel floor rather than the end of the content. */
+  overflow-y: auto;
 }
 
 .section-label {
@@ -233,6 +247,18 @@ html, body {
   border-radius: 14px;
   padding: 10px 18px;
   font-size: 14px;
+  /* Locked to the bottom of the panel. Two things are going on:
+     - sticky/bottom:0 pins it to the panel floor, so on a short screen (the
+       booth monitor is not guaranteed to be 1080px) it stays put and the
+       guesses scroll UNDER it instead of pushing it off the fold.
+     - z-index 6 keeps it above the idle overlay (inset:0 / z-index:5), which
+       would otherwise bury it whenever the zone is empty.
+     The live configuration must be readable at all times. */
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  flex-shrink: 0;
+  box-shadow: 0 -14px 22px -12px var(--panel);
 }
 #tuning summary {
   cursor: pointer;
@@ -272,4 +298,115 @@ html, body {
 @media (max-width: 1200px) {
   .tune-grid { grid-template-columns: repeat(2, 1fr); }
   #primary { font-size: 72px; }
+}
+
+/* ===== Demo-mode banner =====
+   Only visible when the server is running the StubClassifier (random guesses).
+   A fake booth must never be mistakeable for a working one, so this is loud,
+   pinned above everything including the idle overlay, and not dismissable. */
+#stub-banner {
+  position: relative;
+  z-index: 7;
+  background: #b3261e;
+  color: #fff;
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.02em;
+  text-align: center;
+  padding: 10px 14px;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  animation: stubpulse 1.6s ease-in-out infinite;
+}
+@keyframes stubpulse { 0%,100%{opacity:1} 50%{opacity:.72} }
+
+/* ===== Robot face (bottom half of the left column) =====
+   Expression is set by a class on #face and always mirrors the band shown on
+   the right-hand panel. Children read faces far faster than they read
+   percentages, so this is the fastest channel the booth has for "I am not
+   sure" — but it must never contradict the numbers. */
+#face {
+  flex: 1 1 50%;
+  min-height: 0;
+  background: radial-gradient(120% 140% at 50% 15%, #18202e 0%, var(--bg) 70%);
+  border-top: 2px solid #ffffff10;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+#face-svg { width: 78%; height: 88%; }
+
+.socket {
+  fill: #0d1219;
+  stroke: var(--band);
+  stroke-width: 5;
+  filter: drop-shadow(0 0 22px var(--band-glow));
+  transition: stroke .35s ease, filter .35s ease;
+}
+.pupil { fill: var(--band); transition: fill .35s ease; }
+.glint { fill: #ffffff; opacity: .9; }
+.lid   { fill: #0b0e14; }
+
+/* --- pupils: transform in SVG user units --- */
+.pupil-g, .lid { transition: transform .45s cubic-bezier(.22,.61,.36,1); }
+
+/* --- IDLE: slow blink + gentle wander, so a dormant booth still looks alive - */
+.exp-idle .pupil-g { animation: wander 7s ease-in-out infinite; }
+.exp-idle .lid     { animation: blinklid 4.6s ease-in-out infinite; }
+@keyframes wander {
+  0%,100% { transform: translate(0,0); }
+  25%     { transform: translate(-16px, 6px); }
+  60%     { transform: translate(15px, -5px); }
+}
+@keyframes blinklid {
+  0%, 92%, 100% { transform: translateY(0); }
+  95%           { transform: translateY(215px); }
+}
+
+/* --- CONFIDENT: wide open, centred, a small pleased bounce --- */
+.exp-confident .lid     { transform: translateY(0); }
+.exp-confident .pupil-g { animation: bounce 1.8s ease-in-out infinite; }
+@keyframes bounce {
+  0%,100% { transform: translateY(0); }
+  50%     { transform: translateY(-9px); }
+}
+
+/* --- HEDGING: half-lidded and looking away. The universal "hmmm". --- */
+.exp-hedging .lid     { transform: translateY(78px); }
+.exp-hedging .pupil-g { transform: translate(20px, 6px); }
+
+/* --- CONFUSED: eyes wide, pupils small and darting --- */
+.exp-confused .lid    { transform: translateY(-14px); }
+/* scale the whole pupil GROUP -- shrinking the pupil circle alone left the
+   glint floating outside it at full size, which read as a rendering bug */
+.exp-confused .pupil-core { transform: scale(.6); }
+.exp-confused .pupil-g{ animation: dart .7s steps(2, end) infinite; }
+@keyframes dart {
+  0%   { transform: translate(-14px, -6px); }
+  50%  { transform: translate(14px, 4px); }
+  100% { transform: translate(-14px, -6px); }
+}
+
+/* --- UNKNOWN: looking up and away, lids a little low. Baffled, not sad:
+       nothing here should read as the child having done something wrong. --- */
+.exp-unknown .lid     { transform: translateY(40px); }
+.exp-unknown .pupil-g { animation: search 2.6s ease-in-out infinite; }
+@keyframes search {
+  0%,100% { transform: translate(-18px, -14px); }
+  50%     { transform: translate(18px, -14px); }
+}
+
+/* --- DOWN: socket goes grey and lids close most of the way. Distinct from
+       idle, so a dead server never reads as a booth waiting for an object. --- */
+.exp-down .socket  { stroke: #3a4557; filter: none; }
+.exp-down .pupil   { fill: #3a4557; }
+.exp-down .lid     { transform: translateY(150px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pupil-g, .lid { animation: none !important; }
+}
+
+.pupil-core {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform .35s cubic-bezier(.22,.61,.36,1);
 }

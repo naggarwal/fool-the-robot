@@ -1,0 +1,161 @@
+# The challenge deck — "Can You Fool the Robot?"
+#
+# One instruction per card, phrased for a child aged 6-12. Cards are drawn at
+# random without immediate repeat (PRD §4.3).
+#
+# ---------------------------------------------------------------------------
+# SCHEMA
+# ---------------------------------------------------------------------------
+# id           string   stable slug, unique. Safe to reference in code/logs.
+# card         string   THE ONLY TEXT A CHILD SEES OR HEARS. One instruction,
+#                       one sentence, no jargon, never makes the child feel
+#                       tested. Read it aloud as written.
+# why          string   OPERATOR VIEW ONLY. One line a teen volunteer can say
+#                       to a parent who asks "why did that work?" Never shown
+#                       to the child, never spoken.
+# reliability  enum     how dependably this card produces a fool:
+#                         high     — measured on this build, works
+#                         medium   — measured once, or partially
+#                         untested — plausible, not yet verified on this build
+#                       Most cards are `untested` on purpose. The PRD predicts
+#                       drawings and close-ups break CLIP; that prediction has
+#                       NOT been measured here, and CLIP is known to handle
+#                       illustrations better than people expect. Update these
+#                       values from real readings, not from expectations.
+# expect       enum     what a fool looks like on this card:
+#                         split    — top two bars land close together
+#                         drop     — top-1 percentage falls into `confused`
+#                         gauge    — familiarity gauge drops to LOW
+#                         none     — no result at all (zone reads as empty)
+# caution      string   optional. A known failure mode of the CARD itself, so a
+#                       volunteer isn't left explaining a dud.
+#
+# ---------------------------------------------------------------------------
+# HOW THE ROBOT ACTUALLY WORKS (the one paragraph behind every "why" note)
+# ---------------------------------------------------------------------------
+# CLIP does not recognise objects. It turns the picture into a list of numbers,
+# turns each of ~52 short text descriptions ("a photo of a sneaker") into a
+# list of numbers, and reports which text is closest to the picture. It has no
+# 3D model of anything, no sense of real-world size, no idea that a covered
+# object continues behind the hand, and no ability to count. Every card below
+# attacks one of those gaps.
+#
+# Two separate signals move on screen, and they move for different reasons:
+#   * The BARS are relative — a softmax over every label including the hidden
+#     anchor labels. Anything that makes the picture look a bit like several
+#     descriptions at once splits the bars or drags the top one down.
+#   * The FAMILIARITY GAUGE is absolute — the raw similarity between the
+#     picture and the single best object description, mapped 0.24 -> 0.33.
+#     The anchor labels do NOT feed this gauge. Only a genuinely unfamiliar
+#     thing pulls it to LOW.
+# A card that splits the bars but leaves the gauge HIGH is the "I know it's a
+# shoe, I just can't tell which" lesson. A card that drops the gauge is the
+# "I have never seen that in my life" lesson. Both are wins. They teach
+# different halves of the same idea.
+# ---------------------------------------------------------------------------
+
+deck:
+
+  - id: near-neighbour-shoes
+    card: "Grab two shoes from the basket that look kind of alike. Show me one, then the other."
+    why: "The vocabulary deliberately contains sneaker, dress shoe, boot and sandal. They're all shoe-shaped, so all four descriptions match almost equally and the bars split instead of picking a winner."
+    reliability: high
+    expect: split
+    caution: "The gauge stays HIGH here, and that's the point — it knows it's footwear, it just can't pick which one."
+
+  - id: never-seen-before
+    card: "Find something you think I've never seen before. Anything at all."
+    why: "I only know about 42 kinds of object. Show me a 43rd and I can't say 'I don't know' — I have to pick one of my 42. The familiarity gauge is what catches it: nothing matches well, so the needle drops."
+    reliability: medium
+    expect: gauge
+    caution: "Verified on one object (a roll of tape: two near-tied guesses plus LOW familiarity). The gap between unfamiliar objects and real ones is thin, so an odd-but-close item may still read as familiar."
+
+  - id: upside-down
+    card: "Turn it upside down. Can I still tell what it is?"
+    why: "I've mostly been shown pictures of objects the right way up, so upside-down is genuinely less like the description I'm matching against. I have no mental model I can rotate."
+    reliability: untested
+    expect: drop
+
+  - id: sideways-edge
+    card: "Turn it sideways, so I'm only looking at the thin edge."
+    why: "I match the whole picture at once. From the edge, a book, a phone and a ruler all become the same flat rectangle, and I have no way to reason about the sides I can't see."
+    reliability: untested
+    expect: split
+
+  - id: cover-half
+    card: "Cover half of it with your hand."
+    why: "People assume the hidden half is still there. I don't. I only ever see what's in the picture, so half an object is a new, stranger-looking object to me."
+    reliability: untested
+    expect: drop
+    caution: "A hand in shot is normal and expected — one of my hidden labels is literally 'a person's hand', which quietly soaks up some of the guess."
+
+  - id: extreme-closeup
+    card: "Get super close. Show me one tiny piece of it."
+    why: "Close up, the shape disappears and only the texture is left. I have no idea how big anything really is, so a bit of blue plastic is a bit of blue plastic whether it's a LEGO brick or a water bottle."
+    reliability: untested
+    expect: drop
+
+  - id: far-away
+    card: "Now hold it as far away from me as you can."
+    why: "Small in the frame means most of what I'm looking at is background, not object, so the description of the object stops being the closest match."
+    reliability: untested
+    expect: none
+    caution: "Likely failure mode is nothing happening at all. I only look at the box in the middle of the screen, and if too little is in it the screen goes back to 'Show me something!'. If that happens, bring the object back in and try a different card."
+
+  - id: show-a-drawing
+    card: "Draw one on paper instead, then show me your drawing."
+    why: "A drawing has the right shape but none of the real shading, texture or colour, so it sits somewhere between the real object and my hidden 'a close-up of a texture' label."
+    reliability: untested
+    expect: drop
+    caution: "Drawings can also work fine — CLIP has seen plenty of illustrations. If it guesses right, that IS the answer: 'it learned from pictures, and a drawing is a picture too.'"
+
+  - id: two-of-them
+    card: "Show me two of them at once. How many do I see?"
+    why: "I cannot count. Nothing in my training gives me a notion of 'two'. I'll usually name the object just fine and completely ignore that there are two of it."
+    reliability: untested
+    expect: split
+    caution: "A weak fool but a great talking point — ask the child what it got wrong. 'It got the what right and the how many wrong.'"
+
+  - id: blurry-motion
+    card: "Wave it around fast and make it go blurry."
+    why: "Blur smears the edges I rely on. One of my hidden labels is 'a blurry photo', so blur quietly pulls the guess away from every real object at once."
+    reliability: untested
+    expect: drop
+
+  - id: busy-background
+    card: "Hold it in front of something bright and stripy."
+    why: "I look at the whole square, not just the object. A loud background is part of the picture I'm matching, so it drags the answer around with it."
+    reliability: untested
+    expect: drop
+    caution: "The grey backdrop card is there precisely to stop this happening by accident. Put it back after this card."
+
+  - id: in-shadow
+    card: "Make a shadow over it with your hands so it goes dark."
+    why: "Colour and brightness are part of what I match on. In the dark, a banana stops being banana-yellow and starts being a dark curved shape."
+    reliability: untested
+    expect: drop
+
+  - id: wrap-it-up
+    card: "Wrap it in a cloth so only a little bit peeks out."
+    why: "Now the cloth is most of the picture. I'll often name the cloth instead — one of my hidden labels is 'a piece of clothing' — because that really is what most of the picture is."
+    reliability: untested
+    expect: gauge
+
+  - id: toy-version
+    card: "Show me a toy one instead of the real one."
+    why: "A toy has the right shape and the wrong everything else: plastic instead of skin, too shiny, wrong size. Size is the one I can't check at all, because I have no idea how far away anything is."
+    reliability: untested
+    expect: split
+
+  - id: squash-and-bend
+    card: "Squish it, bend it, or scrunch it into a new shape."
+    why: "Shape is most of what I've got. Change the shape and the description stops fitting, because I never learned that objects stay themselves when you bend them."
+    reliability: untested
+    expect: drop
+    caution: "Only offer this with the soft props — socks, gloves, paper, stuffed animals. Never with something breakable or someone's own belongings."
+
+  - id: mystery-mix
+    card: "Pick any two things and hold them up together."
+    why: "I have to give one answer for the whole picture. With two different objects in it, there is no right answer available to me, so the bars split between them."
+    reliability: untested
+    expect: split

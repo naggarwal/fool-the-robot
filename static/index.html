@@ -8,15 +8,63 @@
 </head>
 <body>
   <div id="stage">
-    <!-- LEFT ~55%: live mirrored MJPEG feed (do NOT flip in CSS) -->
-    <section id="feed">
-      <img id="video" src="/video" alt="live camera">
-      <div id="reticle"></div>
-      <div id="conn" class="conn conn--down">connecting…</div>
+    <!-- LEFT ~55%: camera on top, the robot's face underneath. -->
+    <section id="left">
+
+      <!-- live mirrored MJPEG feed (do NOT flip in CSS) -->
+      <div id="feed">
+        <img id="video" src="/video" alt="live camera">
+        <div id="reticle"></div>
+        <div id="conn" class="conn conn--down">connecting…</div>
+      </div>
+
+      <!-- The face. Expression is driven by the band class on #face
+           (exp-idle / exp-confident / exp-hedging / exp-confused /
+           exp-unknown), so it always agrees with the words on the right —
+           a face saying one thing while the bars say another would undercut
+           the whole "honest about uncertainty" lesson. -->
+      <div id="face" class="exp-idle" aria-hidden="true">
+        <svg id="face-svg" viewBox="0 0 420 230" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <clipPath id="clip-l"><ellipse cx="130" cy="115" rx="64" ry="74"/></clipPath>
+            <clipPath id="clip-r"><ellipse cx="290" cy="115" rx="64" ry="74"/></clipPath>
+          </defs>
+
+          <g class="eye">
+            <ellipse class="socket" cx="130" cy="115" rx="64" ry="74"/>
+            <g clip-path="url(#clip-l)">
+              <g class="pupil-g">
+                <g class="pupil-core">
+                  <circle class="pupil" cx="130" cy="115" r="31"/>
+                  <circle class="glint" cx="117" cy="100" r="10"/>
+                </g>
+              </g>
+              <rect class="lid" x="50" y="-200" width="160" height="200"/>
+            </g>
+          </g>
+
+          <g class="eye">
+            <ellipse class="socket" cx="290" cy="115" rx="64" ry="74"/>
+            <g clip-path="url(#clip-r)">
+              <g class="pupil-g">
+                <g class="pupil-core">
+                  <circle class="pupil" cx="290" cy="115" r="31"/>
+                  <circle class="glint" cx="277" cy="100" r="10"/>
+                </g>
+              </g>
+              <rect class="lid" x="210" y="-200" width="160" height="200"/>
+            </g>
+          </g>
+        </svg>
+      </div>
     </section>
 
     <!-- RIGHT ~45%: guess + bars + familiarity + tuning -->
     <section id="panel">
+
+      <!-- Shown only when the server is running the StubClassifier, i.e. the
+           guesses are RANDOM, not CLIP. Must be impossible to miss. -->
+      <div id="stub-banner" class="hidden">⚠️ DEMO MODE — guesses are random, not real AI</div>
 
       <!-- Primary guess -->
       <div id="guess" class="band-idle">
@@ -48,10 +96,13 @@
       </div>
 
       <!-- Idle overlay -->
+      <!-- Idle overlay. Doubles as the disconnected state: app.js swaps the
+           copy, because "nothing in the zone" and "the server went away" used
+           to render identically and that caused a real misdiagnosis. -->
       <div id="idle" class="hidden">
-        <div class="idle-emoji">👀</div>
-        <div class="idle-text">Show me something!</div>
-        <div class="idle-sub">Hold an object up to the camera.</div>
+        <div id="idle-emoji" class="idle-emoji">👀</div>
+        <div id="idle-text" class="idle-text">Show me something!</div>
+        <div id="idle-sub" class="idle-sub">Hold an object up to the camera.</div>
       </div>
 
       <!-- Tuning panel (collapsible, visible by default) -->
@@ -59,16 +110,16 @@
         <summary>Tuning <span class="raw-readout"><code id="raw-label">—</code> · sim <code id="raw-sim">—</code></span></summary>
         <div class="tune-grid">
           <label>Temperature <output id="out-temperature">15</output>
-            <input type="range" id="s-temperature" data-field="temperature" min="5" max="40" step="0.5" value="15">
+            <input type="range" id="s-temperature" data-field="temperature" min="5" max="100" step="1" value="55">
           </label>
           <label>Similarity floor <output id="out-floor">0.220</output>
-            <input type="range" id="s-floor" data-field="floor" min="0.10" max="0.35" step="0.005" value="0.22">
+            <input type="range" id="s-floor" data-field="floor" min="0.10" max="0.35" step="0.005" value="0.24">
           </label>
           <label>Fam low sim <output id="out-fam_low_sim">0.200</output>
-            <input type="range" id="s-fam_low_sim" data-field="fam_low_sim" min="0.10" max="0.35" step="0.005" value="0.20">
+            <input type="range" id="s-fam_low_sim" data-field="fam_low_sim" min="0.10" max="0.35" step="0.005" value="0.24">
           </label>
           <label>Fam high sim <output id="out-fam_high_sim">0.300</output>
-            <input type="range" id="s-fam_high_sim" data-field="fam_high_sim" min="0.20" max="0.40" step="0.005" value="0.30">
+            <input type="range" id="s-fam_high_sim" data-field="fam_high_sim" min="0.20" max="0.40" step="0.005" value="0.33">
           </label>
           <label>Confident min <output id="out-confident_min">70</output>
             <input type="range" id="s-confident_min" data-field="confident_min" min="50" max="90" step="1" value="70">

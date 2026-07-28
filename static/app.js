@@ -28,6 +28,7 @@
     famWord:  document.getElementById("fam-word"),
     rawLabel: document.getElementById("raw-label"),
     rawSim:   document.getElementById("raw-sim"),
+    face:     document.getElementById("face"),
     root:     document.documentElement,
   };
 
@@ -94,11 +95,22 @@
   }
 
   // ---- Apply a full result ---------------------------------------------
+  const FACE_EXPRESSIONS = ["idle", "confident", "hedging", "confused", "unknown", "down"];
+  function setFace(expression) {
+    if (!el.face) return;
+    FACE_EXPRESSIONS.forEach(function (e) {
+      el.face.classList.toggle("exp-" + e, e === expression);
+    });
+  }
+
   function applyBand(band) {
     const b = BANDS[band] || BANDS.idle;
     el.root.style.setProperty("--band", b.color);
     el.root.style.setProperty("--band-glow", b.glow);
     el.caption.textContent = b.caption;
+    // Face is driven from the SAME band as the caption and bars, so the
+    // expression can never contradict the numbers next to it.
+    setFace(FACE_EXPRESSIONS.indexOf(band) !== -1 ? band : "idle");
   }
 
   function showIdle(isIdle) {
@@ -109,6 +121,12 @@
     // Live operator readout (always update if provided).
     if (msg.raw_top_label != null) el.rawLabel.textContent = msg.raw_top_label;
     if (msg.raw_top_sim != null)   el.rawSim.textContent = Number(msg.raw_top_sim).toFixed(3);
+
+    syncSliders(msg);   // sliders must show what the SERVER is actually running
+
+    // Random-guess mode must be impossible to mistake for the real thing.
+    const banner = document.getElementById("stub-banner");
+    if (banner) banner.classList.toggle("hidden", !msg.stub);
 
     if (msg.present === false) {
       showIdle(true);
@@ -129,9 +147,37 @@
   let reconnectDelay = 500;
   const MAX_DELAY = 5000;
 
+  // "Nothing in the zone" and "the server went away" used to render as the
+  // identical "Show me something!" screen. A volunteer holding an object at a
+  // dead booth would see the same thing as a working idle one -- and it already
+  // cost a wrong diagnosis once during calibration. Make the two distinct.
+  const IDLE_COPY = {
+    idle: ["👀", "Show me something!", "Hold an object up to the camera."],
+    down: ["😴", "Waking up…", "Reconnecting to the robot's brain."],
+  };
+  function setIdleCopy(kind) {
+    const [emoji, text, sub] = IDLE_COPY[kind];
+    const e = document.getElementById("idle-emoji");
+    const t = document.getElementById("idle-text");
+    const s = document.getElementById("idle-sub");
+    if (e) e.textContent = emoji;
+    if (t) t.textContent = text;
+    if (s) s.textContent = sub;
+  }
+
   function setConn(up) {
     el.conn.textContent = up ? "● live" : "reconnecting…";
     el.conn.className = "conn " + (up ? "conn--up" : "conn--down");
+    // While the socket is down the panel must NOT claim to be waiting for an
+    // object -- it is not receiving anything at all.
+    if (!up) {
+      setIdleCopy("down");
+      showIdle(true);
+      applyBand("idle");
+      setFace("down");   // must not look like a booth patiently waiting
+    } else {
+      setIdleCopy("idle");
+    }
   }
 
   function connect() {
@@ -162,6 +208,39 @@
     setConn(false);
     setTimeout(connect, reconnectDelay);
     reconnectDelay = Math.min(MAX_DELAY, reconnectDelay * 1.6);
+  }
+
+  // Slider positions are cosmetic HTML defaults until the server tells us what
+  // it is ACTUALLY running. Without this the panel can display a stale value
+  // (e.g. "15") while the engine runs 55 -- which made a calibration session
+  // read as broken when it was fine. Sync once, then leave the operator alone.
+  function syncSliders(msg) {
+    if (msg.temperature == null) return;
+    const fromServer = {
+      temperature: msg.temperature,
+      floor: msg.floor,
+      fam_low_sim: msg.fam_low_sim,
+      fam_high_sim: msg.fam_high_sim,
+    };
+    Object.keys(fromServer).forEach(function (field) {
+      const value = fromServer[field];
+      if (value == null) return;
+      const input = document.querySelector('input[data-field="' + field + '"]');
+      if (!input) return;
+      // never yank a control out from under the operator mid-drag
+      if (document.activeElement === input) return;
+      // widen the track if the real value sits outside the authored range,
+      // otherwise the browser clamps it and a nudge would wreck the calibration
+      if (Number(value) > Number(input.max)) input.max = value;
+      if (Number(value) < Number(input.min)) input.min = value;
+      input.value = value;
+      const out = document.getElementById("out-" + field);
+      if (out) {
+        const isFloatField =
+          ["floor", "fam_low_sim", "fam_high_sim"].indexOf(field) !== -1;
+        out.textContent = isFloatField ? Number(value).toFixed(3) : value;
+      }
+    });
   }
 
   function sendTune(field, value) {

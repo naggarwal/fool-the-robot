@@ -53,7 +53,75 @@ display:
   - {label: "spoon",          prompt: "a spoon"}
   - {label: "fork",           prompt: "a fork"}
   - {label: "toothbrush",     prompt: "a toothbrush"}
-  - {label: "banana (toy)",   prompt: "a toy banana"}
+  - {label: "toy banana",     prompt: "a toy banana"}
+
+  # ===================================================================== #
+  # Added 2026-07-26 (+48). Rationale: a child's own object had roughly even
+  # odds of falling outside the original 42, which stalled throughput on "I
+  # have no idea" rather than producing a teachable fool. These are the things
+  # a 6-12 year old actually has in a pocket at a community centre, plus what
+  # the accompanying adult is carrying.
+  #
+  # NOTE: adding labels lowers every top-1 percentage (they all share one
+  # softmax denominator) and multiplies the voice cache by label count.
+  # Re-run scripts/calibrate.py before the event.
+  # ===================================================================== #
+
+  # --- kid pocket / backpack items ---
+  - {label: "fidget spinner", prompt: "a fidget spinner"}
+  - {label: "trading card",   prompt: "a trading card"}
+  - {label: "playing card",   prompt: "a playing card"}
+  - {label: "sticker",        prompt: "a sticker"}
+  - {label: "hair tie",       prompt: "a hair elastic tie"}
+  - {label: "rubber band",    prompt: "a rubber band"}
+  - {label: "bottle cap",     prompt: "a plastic bottle cap"}
+  - {label: "slime",          prompt: "a blob of toy slime"}
+  - {label: "LEGO minifigure",prompt: "a LEGO minifigure"}
+  - {label: "bracelet",       prompt: "a beaded bracelet"}
+  - {label: "marble",         prompt: "a glass marble"}
+  - {label: "bouncy ball",    prompt: "a small rubber bouncy ball"}
+  - {label: "yo-yo",          prompt: "a yo-yo"}
+  - {label: "keychain",       prompt: "a keychain"}
+  - {label: "pencil case",    prompt: "a pencil case"}
+  - {label: "notebook",       prompt: "a spiral notebook"}
+  - {label: "toy dinosaur",   prompt: "a toy dinosaur"}
+  - {label: "action figure",  prompt: "an action figure"}
+  - {label: "dice",           prompt: "a pair of dice"}
+  - {label: "jump rope",      prompt: "a jump rope"}
+  - {label: "whistle",        prompt: "a whistle"}
+
+  # --- adult pocket / bag items ---
+  - {label: "wallet",         prompt: "a wallet"}
+  - {label: "purse",          prompt: "a purse"}
+  - {label: "tote bag",       prompt: "a tote bag"}
+  - {label: "dollar bill",    prompt: "a dollar bill"}
+  - {label: "credit card",    prompt: "a credit card"}
+  - {label: "business card",  prompt: "a business card"}
+  - {label: "car key",        prompt: "a car key fob"}
+  - {label: "lanyard",        prompt: "a lanyard"}
+  - {label: "watch",          prompt: "a wristwatch"}
+  - {label: "ring",           prompt: "a finger ring"}
+  - {label: "necklace",       prompt: "a necklace"}
+  - {label: "earbuds",        prompt: "a pair of wireless earbuds"}
+  - {label: "tablet",         prompt: "a tablet computer"}
+  - {label: "remote control", prompt: "a TV remote control"}
+  - {label: "computer mouse", prompt: "a computer mouse"}
+  - {label: "charger cable",  prompt: "a charging cable"}
+  - {label: "calculator",     prompt: "a calculator"}
+  - {label: "hand sanitizer", prompt: "a bottle of hand sanitizer"}
+  - {label: "lip balm",       prompt: "a tube of lip balm"}
+  - {label: "comb",           prompt: "a comb"}
+
+  # --- deliberate near-neighbour confusers for the sets above ---
+  # (coffee cup/travel mug vs mug; highlighter vs marker/pen; mitten vs glove;
+  #  slipper/flip flop vs sandal/sneaker; paper clip vs coin/key.)
+  - {label: "coffee cup",     prompt: "a paper coffee cup"}
+  - {label: "travel mug",     prompt: "a travel mug"}
+  - {label: "highlighter",    prompt: "a highlighter pen"}
+  - {label: "mitten",         prompt: "a mitten"}
+  - {label: "slipper",        prompt: "a slipper"}
+  - {label: "flip flop",      prompt: "a flip flop sandal"}
+  - {label: "paper clip",     prompt: "a paper clip"}
 
 # Anchor / rejection labels — never displayed. Probability mass here is the
 # model's implicit "none of the above." Keeps confident-wrong answers down.

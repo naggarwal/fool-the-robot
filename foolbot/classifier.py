@@ -54,6 +54,16 @@ class Classifier:
         self.floor = float(calib["similarity_floor"])
         self.fam_low_sim = float(calib["fam_low_sim"])
         self.fam_high_sim = float(calib["fam_high_sim"])
+        # Familiarity signal selection (PRD 5.2b, calibration doc Finding 1).
+        # "absolute"      -> familiarity from raw top DISPLAY similarity (default)
+        # "anchor_margin" -> familiarity from (best display sim - best ANCHOR sim)
+        # The margin is self-normalising per image, which absolute cosine
+        # similarity is not; measured out-of-vocab objects (0.259-0.270) and real
+        # ones (0.274-0.332) are separated by only ~0.004 on the absolute scale.
+        # Default stays "absolute" until the margin is validated against objects.
+        self.familiarity_mode = str(calib.get("familiarity_mode", "absolute"))
+        self.fam_margin_low = float(calib.get("fam_margin_low", 0.0))
+        self.fam_margin_high = float(calib.get("fam_margin_high", 0.05))
         self.confident_min = float(bands["confident_min"])
         self.confused_max = float(bands["confused_max"])
 
@@ -111,8 +121,22 @@ class Classifier:
         fam_high_sim: float | None = None,
         confident_min: float | None = None,
         confused_max: float | None = None,
+        familiarity_mode: str | None = None,
+        fam_margin_low: float | None = None,
+        fam_margin_high: float | None = None,
     ) -> None:
         """Live-update calibration params. Never reloads model or re-encodes text."""
+        if familiarity_mode is not None:
+            mode = str(familiarity_mode)
+            if mode not in ("absolute", "anchor_margin"):
+                raise ValueError(
+                    f"familiarity_mode must be 'absolute' or 'anchor_margin', got {mode!r}"
+                )
+            self.familiarity_mode = mode
+        if fam_margin_low is not None:
+            self.fam_margin_low = float(fam_margin_low)
+        if fam_margin_high is not None:
+            self.fam_margin_high = float(fam_margin_high)
         if temperature is not None:
             self.temperature = float(temperature)
         if floor is not None:
@@ -127,7 +151,14 @@ class Classifier:
             self.confused_max = float(confused_max)
 
     # ------------------------------------------------------------------ #
-    def classify(self, frame_bgr: np.ndarray) -> dict:
+    def sims(self, frame_bgr: np.ndarray) -> np.ndarray:
+        """Cosine similarity of one frame against ALL label embeddings.
+
+        Display labels occupy [:n_display], anchors the remainder. This is the
+        single numeric entry point: classify() builds on it, and
+        scripts/calibrate.py uses it so an offline sweep and the live server can
+        never drift apart on how an image is encoded.
+        """
         # BGR (OpenCV) -> RGB -> PIL -> open_clip preprocess transform.
         rgb = frame_bgr[:, :, ::-1]
         pil = Image.fromarray(np.ascontiguousarray(rgb))
@@ -138,7 +169,11 @@ class Classifier:
             img_feat = img_feat / img_feat.norm(dim=-1, keepdim=True)
             # Cosine similarity vs ALL cached label embeddings (torch, on-device).
             sims_t = self.text_matrix @ img_feat.float().squeeze(0)  # (N_labels,)
-        sims = sims_t.cpu().numpy()
+        return sims_t.cpu().numpy()
+
+    # ------------------------------------------------------------------ #
+    def classify(self, frame_bgr: np.ndarray) -> dict:
+        sims = self.sims(frame_bgr)
 
         # Calibrated probabilities: logits = sims * temperature, softmax over ALL.
         logits = sims * self.temperature
@@ -160,12 +195,28 @@ class Classifier:
         raw_top_sim = float(display_sims[raw_top_idx])
         raw_top_label = self.display_labels[raw_top_idx]
 
-        # --- familiarity: map raw_top_sim [fam_low..fam_high] -> [0..100], clamped ---
-        span = self.fam_high_sim - self.fam_low_sim
-        if span <= 0:
-            familiarity = 100.0 if raw_top_sim >= self.fam_high_sim else 0.0
+        # --- anchor margin: how much better does the best OBJECT label fit than
+        # the best "none of the above" label? Always computed, even when it is
+        # not the active signal, so it can be validated from live captures
+        # without a code change. See calibration doc Finding 1.
+        anchor_sims = sims[self.n_display:]
+        if anchor_sims.size:
+            raw_anchor_idx = int(np.argmax(anchor_sims))
+            raw_anchor_sim = float(anchor_sims[raw_anchor_idx])
         else:
-            familiarity = (raw_top_sim - self.fam_low_sim) / span * 100.0
+            raw_anchor_idx, raw_anchor_sim = -1, 0.0
+        anchor_margin = float(raw_top_sim - raw_anchor_sim)
+
+        # --- familiarity: map the active signal onto [0..100], clamped ---
+        if self.familiarity_mode == "anchor_margin":
+            value, lo, hi = anchor_margin, self.fam_margin_low, self.fam_margin_high
+        else:
+            value, lo, hi = raw_top_sim, self.fam_low_sim, self.fam_high_sim
+        span = hi - lo
+        if span <= 0:
+            familiarity = 100.0 if value >= hi else 0.0
+        else:
+            familiarity = (value - lo) / span * 100.0
         familiarity = float(max(0.0, min(100.0, familiarity)))
 
         # --- band ---
@@ -185,6 +236,10 @@ class Classifier:
             "band": band,
             "raw_top_sim": raw_top_sim,
             "raw_top_label": raw_top_label,
+            # instrumentation for the anchor-margin familiarity signal
+            "raw_anchor_sim": raw_anchor_sim,
+            "anchor_margin": anchor_margin,
+            "familiarity_mode": self.familiarity_mode,
             "temperature": float(self.temperature),
             "floor": float(self.floor),
             "fam_low_sim": float(self.fam_low_sim),

@@ -10,14 +10,57 @@ model:
 calibration:
   # Effective logit scale applied to cosine sims before softmax.
   # CLIP's built-in scale is ~100 and makes everything read 99%. Start gentle.
-  temperature: 15.0             # effective logit scale (higher = peakier)
+  # ####################################################################### #
+  # ESTIMATED, NOT YET VERIFIED. Read before trusting any percentage.
+  #
+  # T=55 was MEASURED against real objects on 2026-07-26 with a 52-prompt
+  # vocabulary (42 display + 10 anchors), and confirmed live: mug 74%.
+  #
+  # The vocabulary then grew to 100 prompts (90 display + 10 anchors). All
+  # labels share one softmax denominator, so 48 extra competitors push every
+  # top-1 percentage DOWN. At T=55 a clear object now reads roughly 52%
+  # instead of 74%, which parks the booth permanently in "hedging".
+  #
+  # T=70 is an ESTIMATE of the value that restores the measured behaviour,
+  # from probe distributions (two independent probes landed at 65 and 71).
+  # It has NOT been checked against a real object.
+  #
+  # -> Run one /debug/capture round over real objects, then
+  #    ./.venv/bin/python scripts/calibrate.py --write
+  # -> To revert to the last MEASURED state: set 55.0 here and remove the
+  #    48 labels added 2026-07-26 from labels.yaml.
+  # ####################################################################### #
+  temperature: 70.0             # ESTIMATED for 100 prompts (was 55.0 @ 52)
   # Raw cosine similarity floor for the top display label. Below this the
   # system declares "unknown" regardless of relative ranking.
-  similarity_floor: 0.22
+  # WARNING: at 0.24 this floor is INERT -- it never fires. A real empty zone
+  # measures 0.2696-0.2732, i.e. ABOVE it, and higher than a roll of tape
+  # (0.270). Raising it enough to reject an empty zone (0.275+) would reject
+  # every real object too. Empty-zone detection rides entirely on
+  # presence.edge_density_min (a clean 0.000 on a real empty room); out-of-vocab
+  # detection rides on familiarity. Treat this as vestigial until it is
+  # repurposed against anchor_margin or removed. See the calibration doc.
+  similarity_floor: 0.24
   # Familiarity meter mapping: raw top-label cosine sim -> 0..100 display.
   # fam_low_sim maps to 0 (unfamiliar), fam_high_sim maps to 100 (very familiar).
-  fam_low_sim: 0.20
-  fam_high_sim: 0.30
+  # fam_low is pinned == similarity_floor so the band and the gauge can never
+  # disagree (both are always visible in the UI).
+  fam_low_sim: 0.24
+  fam_high_sim: 0.33
+
+  # Which signal drives the familiarity gauge.
+  #   absolute      -> raw top display similarity (calibrated, in use)
+  #   anchor_margin -> (best display sim - best anchor sim); self-normalising
+  #                    per image, which absolute similarity is not.
+  # Absolute separates out-of-vocab (0.259-0.270) from real objects
+  # (0.274-0.332) by only ~0.004, which is inside frame-to-frame noise.
+  # anchor_margin is the designed fix; the margin is ALREADY computed and
+  # reported on every frame (raw_anchor_sim / anchor_margin) so it can be
+  # validated from live captures. DO NOT switch the mode until the bounds
+  # below have been set from real measurements -- they are placeholders.
+  familiarity_mode: "absolute"
+  fam_margin_low: 0.0           # PLACEHOLDER - uncalibrated
+  fam_margin_high: 0.05         # PLACEHOLDER - uncalibrated
 
 # --- Confidence bands (percent of calibrated top-1) ---
 bands:
@@ -55,6 +98,10 @@ inference:
   ema_alpha: 0.5                # weight of newest result in EMA
   stability_seconds: 1.0        # top-1 must hold this long before "announcing"
   ws_push_hz: 10                # max WebSocket result pushes per second
+  attract_after_s: 30           # idle this long before the barker line fires
+  attract_interval_s: 60        # and no more often than this (it is a barker,
+                                # not a loop — the 2.5s voice cooldown alone
+                                # would let it speak continuously all afternoon)
 
 # --- Presence detection (simple, keeps classifier out of it) ---
 presence:
