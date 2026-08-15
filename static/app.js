@@ -29,6 +29,8 @@
     rawLabel: document.getElementById("raw-label"),
     rawSim:   document.getElementById("raw-sim"),
     face:     document.getElementById("face"),
+    arm:      document.getElementById("arm"),
+    armBtn:   document.getElementById("arm-toggle"),
     root:     document.documentElement,
   };
 
@@ -117,6 +119,88 @@
     el.idle.classList.toggle("hidden", !isIdle);
   }
 
+  // ---- Arm gate ---------------------------------------------------------
+  // Local state is INTENT only; `msg.armed` from the server is what gets
+  // rendered. sticky = the ON/OFF toggle, holding = spacebar is down.
+  let sticky = true;      // matches the server's ship-armed default
+  let holding = false;
+  let holdTimer = null;
+  const HOLD_KEEPALIVE_MS = 500;   // server drops a hold after 1.5s of silence
+
+  function sendArm(armed, hold) {
+    const sock = window.__foolbotWS;
+    if (!sock || sock.readyState !== WebSocket.OPEN) return;
+    sock.send(JSON.stringify({ type: "arm", armed: armed, hold: !!hold }));
+  }
+
+  function setSticky(on) {
+    sticky = !!on;
+    if (sticky) stopHold();          // no point peeking at an already-open eye
+    sendArm(sticky, false);
+    renderArmButton();
+  }
+
+  function startHold() {
+    if (holding || sticky) return;   // spacebar is a no-op while sticky-ON
+    holding = true;
+    sendArm(true, true);
+    // Repeat while held: the server closes the gate on its own if these stop,
+    // so a closed tab or a wedged key cannot leave the booth armed all day.
+    holdTimer = setInterval(function () { sendArm(true, true); }, HOLD_KEEPALIVE_MS);
+  }
+
+  function stopHold() {
+    if (holdTimer) { clearInterval(holdTimer); holdTimer = null; }
+    if (!holding) return;
+    holding = false;
+    sendArm(false, true);
+  }
+
+  function renderArmButton() {
+    if (!el.armBtn) return;
+    el.armBtn.textContent = sticky ? "Turn robot OFF" : "Turn robot ON";
+    el.armBtn.classList.toggle("is-off", !sticky);
+  }
+
+  function renderArmChip(armed) {
+    if (!el.arm) return;
+    el.arm.textContent = armed ? "● watching" : "off";
+    el.arm.className = "arm " + (armed ? "arm--on" : "arm--off");
+  }
+
+  function wireArmControls() {
+    renderArmButton();
+    if (el.armBtn) {
+      el.armBtn.addEventListener("click", function () { setSticky(!sticky); });
+      // Otherwise SPACE would re-click the focused button instead of peeking.
+      el.armBtn.addEventListener("keydown", function (e) {
+        if (e.code === "Space" || e.key === " ") e.preventDefault();
+      });
+    }
+    document.addEventListener("keydown", function (e) {
+      if (e.code === "Space" || e.key === " ") {
+        // Space otherwise scrolls the panel and nudges whichever tuning slider
+        // the operator touched last.
+        e.preventDefault();
+        if (e.repeat) return;        // auto-repeat would flood the socket
+        startHold();
+      } else if (e.key === "o" || e.key === "O") {
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        if (e.repeat) return;   // a leaned-on key must not strobe the booth
+        setSticky(!sticky);
+      }
+    });
+    document.addEventListener("keyup", function (e) {
+      if (e.code === "Space" || e.key === " ") stopHold();
+    });
+    // keyup never arrives if focus leaves mid-hold (cmd-tab, screensaver,
+    // someone clicking the desktop) -- without these the booth sticks ON.
+    window.addEventListener("blur", stopHold);
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) stopHold();
+    });
+  }
+
   function handleResult(msg) {
     // Live operator readout (always update if provided).
     if (msg.raw_top_label != null) el.rawLabel.textContent = msg.raw_top_label;
@@ -127,6 +211,23 @@
     // Random-guess mode must be impossible to mistake for the real thing.
     const banner = document.getElementById("stub-banner");
     if (banner) banner.classList.toggle("hidden", !msg.stub);
+
+    // The gate outranks presence: a disarmed booth must read as resting even
+    // with an object sitting in the zone.
+    if (msg.armed === false) {
+      renderArmChip(false);
+      setIdleCopy("off");
+      showIdle(true);
+      applyBand("idle");     // idle face, NOT the "down" face -- off ≠ broken
+      renderBars([]);
+      // Nothing is being classified, so the operator readout must not keep
+      // displaying the last object as though it were current.
+      el.rawLabel.textContent = "—";
+      el.rawSim.textContent = "—";
+      return;
+    }
+    renderArmChip(true);
+    setIdleCopy("idle");
 
     if (msg.present === false) {
       showIdle(true);
@@ -151,9 +252,14 @@
   // identical "Show me something!" screen. A volunteer holding an object at a
   // dead booth would see the same thing as a working idle one -- and it already
   // cost a wrong diagnosis once during calibration. Make the two distinct.
+  // "off" is a THIRD state, deliberately not folded into either of the other
+  // two: a resting booth is neither waiting for an object nor broken, and a
+  // child holding something up to a robot that says "Show me something!" would
+  // read the silence as a bug.
   const IDLE_COPY = {
     idle: ["👀", "Show me something!", "Hold an object up to the camera."],
     down: ["😴", "Waking up…", "Reconnecting to the robot's brain."],
+    off:  ["✋", "Robot is resting", "Hold SPACE to wake it up for a look."],
   };
   function setIdleCopy(kind) {
     const [emoji, text, sub] = IDLE_COPY[kind];
@@ -175,9 +281,14 @@
       showIdle(true);
       applyBand("idle");
       setFace("down");   // must not look like a booth patiently waiting
-    } else {
-      setIdleCopy("idle");
+      // A hold cannot survive the socket that was carrying it, and the chip
+      // must not keep asserting a gate state nobody is reporting.
+      stopHold();
+      if (el.arm) { el.arm.textContent = "—"; el.arm.className = "arm arm--down"; }
     }
+    // Deliberately no setIdleCopy() on the up branch: handleResult owns the
+    // copy and sets it on every frame. Guessing "idle" here would flash "Show
+    // me something!" at a booth that reconnected while switched off.
   }
 
   function connect() {
@@ -194,6 +305,9 @@
     ws.onopen = function () {
       setConn(true);
       reconnectDelay = 500;
+      // Re-assert the toggle after a reconnect (or a server restart), or the
+      // button could read OFF against a freshly-armed engine.
+      sendArm(sticky, false);
     };
     ws.onmessage = function (ev) {
       let msg;
@@ -267,6 +381,29 @@
     });
   }
 
+  // ---- Tuning panel open/closed ----------------------------------------
+  // Ships closed so the child-facing screen is clean, but a calibration
+  // session reloads the page constantly and re-opening it every time was
+  // needless friction -- so the operator's choice sticks.
+  function wireTuningPanel() {
+    const panel = document.getElementById("tuning");
+    if (!panel) return;
+    try {
+      if (localStorage.getItem("foolbot.tuningOpen") === "1") panel.open = true;
+    } catch (e) { /* private mode / disabled storage: just stay closed */ }
+    panel.addEventListener("toggle", function () {
+      try { localStorage.setItem("foolbot.tuningOpen", panel.open ? "1" : "0"); }
+      catch (e) {}
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "t" && e.key !== "T") return;
+      if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+      panel.open = !panel.open;
+    });
+  }
+
   wireSliders();
+  wireTuningPanel();
+  wireArmControls();
   connect();
 })();

@@ -16,6 +16,10 @@
         <img id="video" src="/video" alt="live camera">
         <div id="reticle"></div>
         <div id="conn" class="conn conn--down">connecting…</div>
+        <!-- Server-driven, never local: the chip shows what the ENGINE says the
+             gate is, so a second tab or an expired hold cannot leave this
+             screen claiming "off" while the robot is really watching. -->
+        <div id="arm" class="arm arm--on">● watching</div>
       </div>
 
       <!-- The face. Expression is driven by the band class on #face
@@ -66,6 +70,13 @@
            guesses are RANDOM, not CLIP. Must be impossible to miss. -->
       <div id="stub-banner" class="hidden">⚠️ DEMO MODE — guesses are random, not real AI</div>
 
+      <!-- Arm control. Two ways to gate the robot: a sticky ON/OFF for
+           hands-free running, and hold-SPACE for one look at a time. -->
+      <div id="arm-bar">
+        <button id="arm-toggle" type="button" class="arm-toggle">Turn robot OFF</button>
+        <span class="arm-hint">or <kbd>O</kbd> · hold <kbd>Space</kbd> to peek while off</span>
+      </div>
+
       <!-- Primary guess -->
       <div id="guess" class="band-idle">
         <div id="caption">Starting up…</div>
@@ -106,8 +117,11 @@
       </div>
 
       <!-- Tuning panel (collapsible, visible by default) -->
-      <details id="tuning" open>
-        <summary>Tuning <span class="raw-readout"><code id="raw-label">—</code> · sim <code id="raw-sim">—</code></span></summary>
+      <!-- Collapsed by default: this is the child-facing screen, and the live
+           readout in the summary row is the part that has to stay visible.
+           app.js remembers the operator's choice across reloads. -->
+      <details id="tuning">
+        <summary><span class="tune-title"><span class="chev" aria-hidden="true">▸</span> Tuning</span> <span class="raw-readout"><code id="raw-label">—</code> · sim <code id="raw-sim">—</code></span></summary>
         <div class="tune-grid">
           <label>Temperature <output id="out-temperature">15</output>
             <input type="range" id="s-temperature" data-field="temperature" min="5" max="100" step="1" value="55">

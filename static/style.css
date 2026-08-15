@@ -76,6 +76,19 @@ html, body {
 .conn--up   { background: #0e3d22cc; color: #7ef0a6; }
 .conn--down { background: #4a1c1ccc; color: #ff9d8a; }
 
+/* Arm chip: sits opposite the connection chip so the two states read as the
+   separate questions they are ("is the server there?" vs "is it looking?"). */
+.arm {
+  position: absolute; top: 16px; right: 16px;
+  font-size: 14px; font-weight: 700;
+  padding: 6px 12px; border-radius: 999px;
+  letter-spacing: .3px; text-transform: uppercase;
+  backdrop-filter: blur(6px);
+}
+.arm--on   { background: #0e3d22cc; color: #7ef0a6; }
+.arm--off  { background: #3a2a08cc; color: #ffc23d; }
+.arm--down { background: #22293acc; color: #8b97ad; }
+
 /* ===== RIGHT: panel ===== */
 #panel {
   position: relative;
@@ -268,6 +281,12 @@ html, body {
   display: flex; justify-content: space-between; align-items: center;
 }
 #tuning summary::-webkit-details-marker { display: none; }
+/* The default marker is hidden, so without this there is nothing on screen
+   saying the row can be opened at all. */
+.tune-title { display: inline-flex; align-items: center; gap: 8px; }
+.chev { display: inline-block; transition: transform .15s ease; font-size: 16px; opacity: .8; }
+#tuning[open] .chev { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .chev { transition: none; } }
 .raw-readout { font-weight: 500; color: var(--ink-dim); }
 .raw-readout code {
   background: #0c111a; padding: 2px 8px; border-radius: 6px;
@@ -304,6 +323,29 @@ html, body {
    Only visible when the server is running the StubClassifier (random guesses).
    A fake booth must never be mistakeable for a working one, so this is loud,
    pinned above everything including the idle overlay, and not dismissable. */
+/* ===== Arm control ===== */
+#arm-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  /* Must sit ABOVE the idle overlay (z-index 5): the overlay is exactly what
+     is on screen when the robot is off, and it would otherwise bury the only
+     button that turns it back on. */
+  position: relative;
+  z-index: 6;
+}
+.arm-toggle {
+  font: inherit; font-weight: 700; font-size: 15px;
+  padding: 8px 16px; border-radius: 999px;
+  border: 2px solid #2ee06a; background: #0e3d22; color: #7ef0a6;
+  cursor: pointer;
+}
+.arm-toggle.is-off { border-color: #ffc23d; background: #3a2a08; color: #ffc23d; }
+.arm-hint { font-size: 13px; color: #8b97ad; }
+.arm-hint kbd {
+  font: inherit; font-size: 12px; font-weight: 700;
+  padding: 1px 6px; border-radius: 5px;
+  background: #22293a; border: 1px solid #39415a; color: #c6cfe0;
+}
+
 #stub-banner {
   position: relative;
   z-index: 7;

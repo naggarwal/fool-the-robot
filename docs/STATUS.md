@@ -69,7 +69,8 @@ vision/
 cd ~/projects/vision
 ./run.sh                     # starts server, waits for ready, opens Chrome to the booth
 ```
-Stop: `Ctrl+C` in that terminal, or `pkill -f "uvicorn server:app"`.
+Stop: `Ctrl+C` in that terminal, or `./stop.sh` from anywhere (kills whatever
+holds the port, TERM then KILL).
 Only one instance can hold the webcam at a time — stop the old one before starting a new one.
 First launch ~7s (CLIP model load); instant after. Weights are cached locally
 (fully offline after the one-time ~350 MB download, already done).
@@ -179,7 +180,7 @@ Go/no-go passed; build continued past the confidence core.
 | Voice cascade (PRD §5.4) | **Built and wired.** `foolbot/voice.py` + `config/phrases.yaml` (54 templates, 9 per state) + `scripts/pregenerate_voice.py`. Three tiers: cache → ElevenLabs `eleven_flash_v2_5` (1200 ms deadline) → OS `say` in a killable subprocess (no pyttsx3). Barge-in, 2.5 s cooldown, single pending slot rather than a FIFO. Verified end-to-end in the live server: an attract line spoke through Tier 3. **Tier 2 untested** — no `ELEVENLABS_API_KEY` present; it short-circuits cleanly and never blocks startup. A full render is **1161 utterances / 61,474 characters**, well under the PRD's ~100k estimate — relevant to plan-tier choice. |
 | Fool detection, leaderboard, celebration | Not started. |
 | Robot face / animations | **Done.** Bottom half of the left column, under the camera feed. Two SVG eyes, expression driven by a class on `#face` set inside `applyBand()` — so the face is fed by the *same* band as the caption and bars and cannot contradict them. Five expressions verified visually: `idle` (slow blink + pupil wander, so a dormant booth still looks alive), `confident` (wide, centred, small pleased bounce), `hedging` (half-lidded, looking away), `confused` (wide, pupils shrunk and darting), `unknown` (searching up and away — baffled, never disapproving), plus `down` (grey, lids nearly shut) for a dropped connection. Pure SVG + CSS, no dependencies, and honours `prefers-reduced-motion`. |
-| Operator view + panic key (PRD §5.7) | Not started. No keyboard handler exists yet. |
+| Operator view + panic key (PRD §5.7) | **Partly done — the arm gate.** `Engine._armed` gates the inference loop, so a disarmed booth does not classify, announce, or run the attract barker; capture keeps running so `/video` stays live and re-arming is instant. Two controls, one flag: `O` (or the on-screen button) is a sticky off/on switch, and holding `Space` while off is a push-to-look peek. Transport is `{"type":"arm","armed":bool,"hold":bool}` on the existing `/ws`, and the server echoes `armed` in every result frame so the panel renders server truth rather than its own keypresses. A hold carries a 1.5 s TTL refreshed by browser keep-alives and is dropped on socket close, so a dead tab or a wedged key cannot leave the booth armed. Disarming resets stability state so re-arming cannot announce a stale object. Off is a distinct third UI state (✋ "Robot is resting"), never conflated with idle or disconnected. **Not done:** separate audio mute, counters, any operator-only view. |
 | Person deflection / MediaPipe (PRD §9.3) | Not started. |
 | `run.bat` (PRD #4) | Not started — macOS only today. |
 
@@ -297,10 +298,11 @@ calibration doc is now a *historical in-vocab* figure, not an out-of-vocab one.
    run `scripts/pregenerate_voice.py` (1161 utterances / 61k chars). The default
    voice id is a placeholder, and changing it invalidates the whole cache by
    design — so pick it before generating, not after. Confirm the plan tier first.
-5. **Operator view + panic key** (PRD §5.7) — `voice.set_muted()` and
-   `voice.status()` already exist and are surfaced in every WS frame; only the
-   keyboard handler and panel are missing. Then fool detection / leaderboard /
-   celebration, then the robot face.
+5. **Rest of the operator view** (PRD §5.7) — the arm gate (`O` / hold `Space`)
+   covers the panic case. Still missing: a mute that silences audio without
+   stopping the guessing (`voice.set_muted()` and `voice.status()` already exist
+   and are surfaced in every WS frame — only a control is needed), and counters.
+   Then fool detection / leaderboard / celebration.
 6. **Give `config/challenges.yaml` a consumer** in the front end.
 7. Kiosk-resolution layout check (open finding 3); `run.bat` for the Windows
    backup laptop.

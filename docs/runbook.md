@@ -85,7 +85,7 @@ Ask these every time. The middle one is the whole activity.
 before, and it's never been shown one like that.* Any version of that sentence
 from a child is a win. Say so out loud.
 
-**If a parent asks how it works:** "It compares the picture to about fifty short
+**If a parent asks how it works:** "It compares the picture to a hundred short
 written descriptions and picks whichever one is closest. It has no idea what a
 shoe actually is — it's matching pictures to words." Each challenge card has a
 one-line explanation on the back for exactly this.
@@ -94,9 +94,12 @@ one-line explanation on the back for exactly this.
 
 ## 5. When something goes wrong
 
-**There is no panic key yet.** *(TBD — a mute key and an operator panel are
-specified and being built.)* If the robot is talking and you need it quiet right
-now, pull the plug on the powered speaker. The restart below silences it too.
+**Your panic key is `O`.** It turns the robot off instantly — no guessing, no
+talking, screen reads *"Robot is resting."* Press `O` again to bring it back.
+The camera stays on, so turning it back on is instant. See §5a.
+
+If you need the audio gone specifically, pull the plug on the powered speaker.
+The restart below silences it too.
 
 **Your recovery, for absolutely anything:**
 
@@ -104,16 +107,61 @@ now, pull the plug on the powered speaker. The restart below silences it too.
 2. Type `./run.sh` and press Enter.
 3. Wait about 10 seconds. Press **Cmd+Ctrl+F** in Chrome for fullscreen.
 
-If it complains about the camera, first run:
+If it complains about the camera, or says the address is already in use, the
+old copy is still running. Stop it properly:
 
 ```
-pkill -f "uvicorn server:app"
+./stop.sh
 ```
 
-then `./run.sh` again. Only one copy can use the webcam at a time.
+then `./run.sh` again. Only one copy can use the webcam or the port at a time.
+
+`./stop.sh` asks the old server to quit, waits six seconds, and force-kills it
+if it hasn't. It is safe to run at any time — if nothing is running it just
+says so. Use it at the end of the day too: closing the Terminal window alone
+used to leave the robot running invisibly in the background.
 
 While you wait, hand the queue a challenge card and ask them to guess what the
 robot will say. Dead air is the only real failure.
+
+---
+
+## 5a. Turning the robot off and on
+
+The robot only guesses and talks when it is **watching**. The chip in the top
+right corner of the camera view always tells you which it is:
+
+| Chip | Means |
+|---|---|
+| ● WATCHING (green) | Guessing and talking normally |
+| OFF (amber) | Resting — sees nothing, says nothing |
+| — (grey) | Not connected to the server; see §6 |
+
+Two ways to control it:
+
+- **`O` — off/on switch.** Sticky. Press it and the robot stays off until you
+  press it again (or click the **Turn robot ON/OFF** button next to the
+  guesses). Use this between groups, during a talk, or any time you need quiet.
+- **Hold `Space` — peek.** Only while the robot is switched off. It watches for
+  exactly as long as you hold the key and goes back to resting when you let go.
+  Good for a one-off demo without leaving the booth running.
+
+Two things worth knowing:
+
+- If you click away from the browser window mid-hold, the robot goes back to
+  resting on its own. It cannot get stuck on.
+- The `O` switch stays where you left it even if the page reloads. If you come
+  back to a booth that seems dead, check the chip — someone may have left it
+  off.
+
+**The tuning panel** at the bottom of the panel now starts **closed** — the
+child-facing screen shows the guesses and the dial, nothing else. Click the
+`▸ Tuning` row or press `T` to open it; it stays however you left it, even
+after a restart. The live readout (`label · sim`) is visible either way.
+
+**The camera keeps running either way.** Off means the robot ignores what it
+sees, not that the camera is covered. If a parent asks about the camera, that is
+the honest answer; the picture is never saved or sent anywhere.
 
 ---
 
@@ -127,8 +175,10 @@ robot will say. Dead air is the only real failure.
 | Video is frozen | Camera dropped out | Restart (§5). If it repeats, reseat the USB plug |
 | Video is black | Lens cap, or camera aimed at the table edge | Check the aim points into the taped square |
 | Numbers look wrong; everything reads 99% or everything reads 5% | Someone dragged a slider | Restart (§5) — that reloads the saved calibration |
-| Bottom panel is cut off / needs scrolling | Known issue below 1080px screen height | Ignore it; it's for the operator, not the kids |
+| Bottom panel is cut off / needs scrolling | The tuning panel is open on a short screen | Press `T` to close it — it's for the operator, not the kids |
 | Page is blank or won't load | Server not running | Restart (§5) |
+| Screen says "Robot is resting" and nothing happens | Someone switched it off with `O` | Press `O` (or click **Turn robot ON**) — §5a |
+| Space bar does nothing | The robot is already switched on; Space only peeks while it is off | Nothing to fix |
 | It guesses right every single time | Camera too close, or props too easy | Reach for the hard cards: close-up, wrapped, in shadow, or something not in the basket at all |
 | It's wrong on everything, and it's not fun | Lighting shifted | Re-aim the LED, put the grey backdrop card back flat |
 | A child gets upset that it guessed wrong | Framing slipped | "No no — wrong is the *goal*. You just beat the robot." |
@@ -155,12 +205,13 @@ good answer.
 
 | Feature | Status |
 |---|---|
-| Robot speaks its guess out loud | **TBD** — being wired up. If it's talking on the day, that's expected, not a fault |
-| Animated robot face | **TBD** — not built |
+| Robot speaks its guess out loud | **Working.** It waits a second before speaking so it doesn't natter, and it won't repeat itself inside ~2.5s. The computer's built-in voice is the one you'll hear |
+| Animated robot face | **Working.** Under the camera picture. Its expression always matches the caption and the bars — if they disagree, that's a bug worth reporting |
 | Challenge cards on screen | **TBD** — run them off printed cards for now |
 | "Objects That Fooled Me Today" leaderboard on screen | **TBD** — keep a tally on the whiteboard |
 | Confetti / celebration when a fool lands | **TBD** — you are the celebration |
-| Operator panel and panic key | **TBD** — restart is the recovery |
+| Off/on switch and hold-to-peek | **Working.** `O` switches the robot off and on; hold `Space` for one look while it's off; `T` shows/hides the tuning panel — §5a |
+| Full operator panel (mute audio separately, reset counters) | **TBD** — the off switch covers the urgent case; restart covers the rest |
 | Automatic "that's a person!" deflection | **TBD** — camera aim is what keeps faces out of frame |
 
 ---

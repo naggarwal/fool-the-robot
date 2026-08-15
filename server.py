@@ -228,6 +228,18 @@ class Engine:
         self._last_present_at: float = time.time()
         self._spoken_text: str | None = None
 
+        # --- arm gate -------------------------------------------------------
+        # The booth ships ARMED so a run with no keyboard behaves exactly as it
+        # did before this existed. Disarming stops the robot REACTING (no
+        # classify, no voice); capture keeps running so /video stays live and
+        # re-arming is instant -- gating capture would cost a multi-second
+        # camera reopen with a line of kids waiting.
+        self._armed = True
+        # Push-to-look holds arm open with a repeating keep-alive. If the tab
+        # dies mid-hold the keep-alives stop and the booth falls closed on its
+        # own; a sticky ON toggle sets no deadline and stays on.
+        self._armed_until: float | None = None
+
     # ------------------------------------------------------------- lifecycle
     def start(self) -> None:
         t_cap = threading.Thread(target=self._capture_loop, daemon=True, name="capture")
@@ -263,6 +275,12 @@ class Engine:
         period = self.every_n / max(self.fps, 1)
         while not self._stop.is_set():
             t0 = time.time()
+            self._expire_hold()
+            if not self.is_armed():
+                # Disarmed: no classify, no announce, no barker line. A booth
+                # that looks off but keeps talking is worse than no gate at all.
+                self._stop.wait(period)
+                continue
             frame = self.camera.latest_frame()
             if frame is not None:
                 frame = self._crop_region(frame)
@@ -383,6 +401,60 @@ class Engine:
         with self._lock:
             return self._present, (dict(self._result) if self._result else None)
 
+    # ------------------------------------------------------------- arm gate
+    def is_armed(self) -> bool:
+        """True when the robot is allowed to react. PURE READ.
+
+        Every /ws push loop calls this at 10 Hz to report the gate, so it must
+        not change anything -- an expiring hold has to be retired in exactly one
+        place (_expire_hold, on the inference tick) or several sockets race to
+        be the one that trips it.
+        """
+        with self._lock:
+            return self._armed and (
+                self._armed_until is None or time.time() <= self._armed_until
+            )
+
+    def _expire_hold(self) -> None:
+        """Retire a hold whose keep-alives stopped arriving (tab closed, laptop
+        asleep, key wedged). Called only from the inference loop."""
+        with self._lock:
+            if (self._armed and self._armed_until is not None
+                    and time.time() > self._armed_until):
+                self._armed = False
+                self._armed_until = None
+                self._reset_speech_state()
+
+    def set_armed(self, armed: bool, hold_ttl: float | None = None) -> None:
+        """Arm or disarm. hold_ttl set => push-to-look; None => sticky toggle."""
+        with self._lock:
+            was = self._armed
+            self._armed = bool(armed)
+            self._armed_until = (
+                time.time() + hold_ttl if armed and hold_ttl is not None else None
+            )
+            if was and not self._armed:
+                self._reset_speech_state()
+
+    def release_hold(self) -> None:
+        """Drop a push-to-look arm (used when a socket goes away). A sticky ON
+        toggle survives a browser reload on purpose -- that is what it is for."""
+        with self._lock:
+            if self._armed_until is not None:
+                self._armed = False
+                self._armed_until = None
+                self._reset_speech_state()
+
+    def _reset_speech_state(self) -> None:
+        """Forget in-flight stability so re-arming can't blurt out the object
+        that was in frame BEFORE the gate closed as if it had held all along."""
+        self._stable_label = None
+        self._stable_since = 0.0
+        self._spoken_text = None
+        # Deliberately does NOT touch _last_present_at: bumping it on every
+        # disarm would push the attract-barker countdown forward each time
+        # someone peeks with Space, and an idle booth would go silent for good.
+
     def apply_tuning(self, payload: dict) -> None:
         keys = ("temperature", "floor", "fam_low_sim", "fam_high_sim",
                 "confident_min", "confused_max")
@@ -395,6 +467,12 @@ class Engine:
 # FastAPI app
 # ===========================================================================
 app = FastAPI(title="Fool the Robot")
+
+# How long a push-to-look arm survives without a keep-alive from the browser.
+# Long enough to ride out a slow frame or a hiccup, short enough that a dead
+# tab does not leave the booth armed for the rest of the day.
+HOLD_TTL_S = 1.5
+
 engine: Engine | None = None
 voice = None  # foolbot.voice.VoiceEngine | None
 
@@ -614,8 +692,17 @@ async def ws(websocket: WebSocket) -> None:
                     data = json.loads(msg)
                 except json.JSONDecodeError:
                     continue
-                if isinstance(data, dict) and data.get("type") == "tune" and engine:
+                if not isinstance(data, dict) or not engine:
+                    continue
+                if data.get("type") == "tune":
                     engine.apply_tuning(data)
+                elif data.get("type") == "arm":
+                    # hold=True -> push-to-look, kept alive by repeats from the
+                    # browser; hold=False -> sticky ON/OFF toggle, no deadline.
+                    engine.set_armed(
+                        bool(data.get("armed")),
+                        hold_ttl=HOLD_TTL_S if data.get("hold") else None,
+                    )
         except WebSocketDisconnect:
             pass
         except Exception:
@@ -647,6 +734,13 @@ async def ws(websocket: WebSocket) -> None:
             # child never heard.
             if engine is not None:
                 payload["spoken"] = engine._spoken_text
+                # The gate is authoritative on the SERVER. The panel renders
+                # what it is told rather than what its own keyboard did, so a
+                # second tab (or an expired hold) can never leave one screen
+                # claiming the robot is off while it is really watching.
+                payload["armed"] = engine.is_armed()
+                if not payload["armed"]:
+                    payload["top5"] = []
             if voice is not None:
                 st = voice.status()
                 payload["voice"] = {"tier": st.get("tier"), "muted": st.get("muted"),
@@ -663,6 +757,9 @@ async def ws(websocket: WebSocket) -> None:
         pass
     finally:
         recv_task.cancel()
+        # A hold cannot outlive the socket that was holding it.
+        if engine is not None:
+            engine.release_hold()
 
 
 if __name__ == "__main__":
@@ -673,4 +770,8 @@ if __name__ == "__main__":
         app,
         host=srv.get("host", "127.0.0.1"),
         port=int(srv.get("port", 8000)),
+        # The /ws push loop only ends when the browser disconnects, so a
+        # graceful shutdown would wait forever on an open booth tab. Cap it
+        # or Ctrl-C leaves an orphan holding the port.
+        timeout_graceful_shutdown=3,
     )

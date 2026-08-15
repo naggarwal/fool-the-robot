@@ -28,9 +28,17 @@ Landing alongside it, in their own modules but **not yet wired into
 (the temperature sweep). They import and run standalone; nothing in the request
 path calls them yet.
 
+There is an **arm gate**: `O` (or the on-screen button) switches the robot off
+and on, and holding `Space` while it is off buys one look for as long as the key
+is down. Disarmed, the engine does not classify, speak, or run the attract line;
+the camera keeps running so switching back on is instant. The gate lives on the
+server and is echoed in every WS frame, so the screen shows what the engine is
+actually doing rather than what the last keypress asked for.
+
 Not built at all, all specified in the PRD: robot face, on-screen challenge
 cards, fool detection, celebration, leaderboard, face detection and person
-deflection, operator view, panic key, `scripts/pregenerate_voice.py`, `run.bat`.
+deflection, the rest of the operator view, `scripts/pregenerate_voice.py`,
+`run.bat`.
 
 `config/challenges.yaml` exists as a data file but **nothing reads it yet**.
 Until the front end consumes it, challenge cards are run off paper or off the
@@ -74,16 +82,28 @@ ready, then opens Google Chrome at the booth page. It passes
 possible when the voice tier lands. It does **not** launch Chrome in kiosk
 mode — press `Cmd+Ctrl+F` for fullscreen once the page is up.
 
-Stop with `Ctrl+C` in the launching terminal, or:
+Stop with `Ctrl+C` in the launching terminal, or from anywhere:
 
 ```bash
-pkill -f "uvicorn server:app"
+./stop.sh
 ```
+
+`stop.sh` targets whatever is listening on the port rather than matching a
+process name, so it cannot hit an unrelated Python process. It sends `TERM`,
+waits six seconds, then `KILL`s survivors, and exits non-zero if the port is
+somehow still held.
 
 Only one instance can hold the webcam at a time. Always stop the old one before
 starting a new one.
 
-`PORT` overrides the port: `PORT=8080 ./run.sh`.
+`PORT` overrides the port for both scripts: `PORT=8080 ./run.sh`,
+`PORT=8080 ./stop.sh`.
+
+> The `/ws` push loop only ends when the browser disconnects, so uvicorn's
+> default graceful shutdown would wait forever on an open booth tab — `Ctrl+C`
+> appeared to hang and closing the terminal left an orphan holding the port.
+> Both entry points now pass a 3-second `timeout-graceful-shutdown`, and
+> `run.sh` traps `INT TERM HUP` (not just `EXIT`) and escalates to `KILL`.
 
 ### Environment variables
 
@@ -173,7 +193,7 @@ Everything tunable lives in YAML. No code edits on event day.
 | File | Contents | Status |
 |---|---|---|
 | `config/settings.yaml` | Thresholds, calibration, camera, detection region, inference loop, presence gate, server host/port | Calibrated 2026-07-26 |
-| `config/labels.yaml` | The object vocabulary: 42 display labels + 10 hidden anchor labels | In use |
+| `config/labels.yaml` | The object vocabulary: 90 display labels + 10 hidden anchor labels | In use |
 | `config/challenges.yaml` | The challenge deck and the operator-only "why this works" notes | Written; **no consumer yet** |
 | `config/phrases.yaml` | Spoken line templates by state. Copy rules (one `{label}` per line, no digits, no `%`) are validated by `foolbot.voice.load_phrases()`, which raises on any violation | Written; consumed by `foolbot/voice.py`, which the server does not call yet |
 
@@ -334,7 +354,7 @@ vision/
   server.py                  FastAPI app + capture/inference engine
   config/
     settings.yaml            thresholds, camera, calibration
-    labels.yaml              42 display labels + 10 anchors
+    labels.yaml              90 display labels + 10 anchors
     challenges.yaml          the challenge deck (+ operator notes)
     phrases.yaml             every line the robot can say, by state
   foolbot/
