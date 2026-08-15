@@ -62,10 +62,32 @@ section is a snapshot.
 ## Setup
 
 ```bash
-cd ~/projects/vision
-python3.12 -m venv .venv
-./.venv/bin/pip install -r requirements.txt
+./setup.sh
 ```
+
+Builds the venv from `requirements-lock.txt`, pre-downloads the CLIP weights so
+event day needs no network, and then verifies the machine rather than assuming
+it: model loads, `classify()` returns guesses, a camera yields a real frame, and
+the server actually starts and answers `/health`. It ends with either "ready to
+run the booth" or a list of what is wrong.
+
+`./setup.sh --verify` re-runs those checks without reinstalling — the fastest
+answer to "is this laptop ready?". `--fresh` rebuilds the venv from scratch.
+
+For a **second (backup) laptop**, follow `docs/second-laptop.md` — same script,
+plus what does not come across in a clone (calibration, camera index, voice).
+
+By hand, if you prefer:
+
+```bash
+python3.12 -m venv .venv
+./.venv/bin/pip install -r requirements-lock.txt
+```
+
+`requirements.txt` states intent (`torch>=2.2`, …); `requirements-lock.txt` is
+the exact set from the calibrated laptop, and is what `setup.sh` installs — a
+backup that resolves to different versions than the machine the thresholds were
+measured on is not a backup.
 
 First launch takes about 7 seconds while CLIP loads. Subsequent launches are
 instant.

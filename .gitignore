@@ -23,3 +23,6 @@ calib/*.png
 # Pre-generated TTS cache — a full render is ~1161 files / 61k chars of audio.
 # Regenerable from config/phrases.yaml + labels.yaml via scripts/pregenerate_voice.py.
 cache/
+
+# Transient log from setup.sh's server smoke test (kept only on failure).
+.setup-server.log
