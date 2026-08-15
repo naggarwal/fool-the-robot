@@ -65,7 +65,7 @@ deck:
 
   - id: never-seen-before
     card: "Find something you think I've never seen before. Anything at all."
-    why: "I only know about 42 kinds of object. Show me a 43rd and I can't say 'I don't know' — I have to pick one of my 42. The familiarity gauge is what catches it: nothing matches well, so the needle drops."
+    why: "I only know 90 kinds of object. Show me a 91st and I can't say 'I don't know' — I have to pick one of my 90. The familiarity gauge is what catches it: nothing matches well, so the needle drops."
     reliability: medium
     expect: gauge
     caution: "Verified on one object (a roll of tape: two near-tied guesses plus LOW familiarity). The gap between unfamiliar objects and real ones is thin, so an odd-but-close item may still read as familiar."

@@ -47,7 +47,7 @@ walking past, or by a parent standing behind their child.
 
 **Sub-line under the header, in smaller type:**
 
-> The robot only knows about 42 kinds of object. Bring it a 43rd.
+> The robot only knows 90 kinds of object. Bring it a 91st.
 
 **Counter strip for the bottom of the board:**
 
@@ -62,7 +62,7 @@ walking past, or by a parent standing behind their child.
 > ### An AI that guesses — and shows you how sure it is.
 >
 > This laptop runs an image model called CLIP. When your child holds something
-> up, it compares the picture against about fifty short written descriptions
+> up, it compares the picture against a hundred short written descriptions
 > — *"a photo of a sneaker," "a photo of a banana"* — and reports which one is
 > closest.
 >
