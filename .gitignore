@@ -10,8 +10,14 @@ data/
 
 # Calibration captures — webcam frames of whoever ran the pass, and they're
 # room/lighting-specific so they don't transfer. The manifest (numbers + ground
-# truth) is the part worth keeping, so it is NOT ignored.
-calib/*.png
+# truth) is the part worth keeping, so it is NOT ignored. The ** matters:
+# archived rounds live in calib/archive-<date>/ and their frames are no more
+# worth committing than the live ones.
+calib/**/*.png
+
+# UI screenshots — documentation of what a mode looked like, not something a
+# rebuild needs, and they show the room they were shot in. This repo is public.
+deliverables/arm-mode/
 
 # OS
 .DS_Store

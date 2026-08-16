@@ -1,6 +1,16 @@
 # Status — "Fool the Robot" prototype
 
-_Last updated: 2026-07-26_
+_Build log last updated: 2026-07-26. Closed out 2026-08-15._
+
+> **Closed 2026-08-15.** The booth ran at the Alive Center's STEM Exploration
+> Day and it worked. Nothing below was re-verified afterwards, so read it as the
+> build log it is: everything under "NEXT STEPS" was a plan made on 2026-07-26,
+> not a list of outstanding obligations. The commits after that date — the arm
+> gate, the 90-label vocabulary, `stop.sh` releasing the camera, `setup.sh` and
+> the lockfile — landed on top of it and are the state that shipped.
+>
+> The machine this was built on has been wiped. To stand the booth back up, see
+> **Reinstalling from scratch** in the [README](../README.md).
 
 ## TL;DR
 

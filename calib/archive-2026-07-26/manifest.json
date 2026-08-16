@@ -1,0 +1,284 @@
+[
+  {
+    "file": "empty-room__000.png",
+    "true_label": "empty-room",
+    "cls": "empty",
+    "shape": [
+      576,
+      768,
+      3
+    ],
+    "mean_px": 181.02,
+    "edge_density": 0.0,
+    "passes_presence": false,
+    "raw_top_sim": 0.2732,
+    "raw_top_label": "phone",
+    "raw_anchor_sim": 0.3234,
+    "anchor_margin": -0.0502,
+    "top5": [
+      {
+        "label": "phone",
+        "pct": 2.84
+      },
+      {
+        "label": "glue stick",
+        "pct": 2.0
+      },
+      {
+        "label": "ruler",
+        "pct": 1.89
+      },
+      {
+        "label": "marker",
+        "pct": 1.63
+      },
+      {
+        "label": "eraser",
+        "pct": 1.36
+      }
+    ],
+    "band": "confused",
+    "familiarity": 36.9,
+    "tuning": {
+      "temperature": 55.0,
+      "floor": 0.24,
+      "fam_low_sim": 0.24,
+      "fam_high_sim": 0.33
+    }
+  },
+  {
+    "file": "empty-room__001.png",
+    "true_label": "empty-room",
+    "cls": "empty",
+    "shape": [
+      576,
+      768,
+      3
+    ],
+    "mean_px": 180.89,
+    "edge_density": 0.0,
+    "passes_presence": false,
+    "raw_top_sim": 0.2696,
+    "raw_top_label": "phone",
+    "raw_anchor_sim": 0.32,
+    "anchor_margin": -0.0504,
+    "top5": [
+      {
+        "label": "phone",
+        "pct": 2.72
+      },
+      {
+        "label": "glue stick",
+        "pct": 2.11
+      },
+      {
+        "label": "ruler",
+        "pct": 1.96
+      },
+      {
+        "label": "marker",
+        "pct": 1.63
+      },
+      {
+        "label": "eraser",
+        "pct": 1.58
+      }
+    ],
+    "band": "confused",
+    "familiarity": 32.9,
+    "tuning": {
+      "temperature": 55.0,
+      "floor": 0.24,
+      "fam_low_sim": 0.24,
+      "fam_high_sim": 0.33
+    }
+  },
+  {
+    "file": "empty-room__002.png",
+    "true_label": "empty-room",
+    "cls": "empty",
+    "shape": [
+      576,
+      768,
+      3
+    ],
+    "mean_px": 180.91,
+    "edge_density": 0.0,
+    "passes_presence": false,
+    "raw_top_sim": 0.2721,
+    "raw_top_label": "phone",
+    "raw_anchor_sim": 0.3224,
+    "anchor_margin": -0.0503,
+    "top5": [
+      {
+        "label": "phone",
+        "pct": 2.69
+      },
+      {
+        "label": "glue stick",
+        "pct": 2.12
+      },
+      {
+        "label": "ruler",
+        "pct": 2.06
+      },
+      {
+        "label": "marker",
+        "pct": 1.74
+      },
+      {
+        "label": "eraser",
+        "pct": 1.59
+      }
+    ],
+    "band": "confused",
+    "familiarity": 35.6,
+    "tuning": {
+      "temperature": 55.0,
+      "floor": 0.24,
+      "fam_low_sim": 0.24,
+      "fam_high_sim": 0.33
+    }
+  },
+  {
+    "file": "empty-room__003.png",
+    "true_label": "empty-room",
+    "cls": "empty",
+    "shape": [
+      576,
+      768,
+      3
+    ],
+    "mean_px": 181.03,
+    "edge_density": 0.0,
+    "passes_presence": false,
+    "raw_top_sim": 0.2722,
+    "raw_top_label": "phone",
+    "raw_anchor_sim": 0.3228,
+    "anchor_margin": -0.0507,
+    "top5": [
+      {
+        "label": "phone",
+        "pct": 2.74
+      },
+      {
+        "label": "glue stick",
+        "pct": 2.04
+      },
+      {
+        "label": "ruler",
+        "pct": 1.9
+      },
+      {
+        "label": "marker",
+        "pct": 1.59
+      },
+      {
+        "label": "eraser",
+        "pct": 1.51
+      }
+    ],
+    "band": "confused",
+    "familiarity": 35.8,
+    "tuning": {
+      "temperature": 55.0,
+      "floor": 0.24,
+      "fam_low_sim": 0.24,
+      "fam_high_sim": 0.33
+    }
+  },
+  {
+    "file": "preflight__000.png",
+    "true_label": "preflight",
+    "cls": "clear",
+    "shape": [
+      576,
+      768,
+      3
+    ],
+    "mean_px": 155.01,
+    "edge_density": 0.04458,
+    "passes_presence": true,
+    "raw_top_sim": 0.2305,
+    "raw_top_label": "glasses",
+    "raw_anchor_sim": 0.2227,
+    "anchor_margin": 0.0078,
+    "top5": [
+      {
+        "label": "glasses",
+        "pct": 19.06
+      },
+      {
+        "label": "phone",
+        "pct": 4.08
+      },
+      {
+        "label": "sunglasses",
+        "pct": 3.64
+      },
+      {
+        "label": "baseball cap",
+        "pct": 2.88
+      },
+      {
+        "label": "lanyard",
+        "pct": 2.26
+      }
+    ],
+    "band": "unknown",
+    "familiarity": 0.0,
+    "tuning": {
+      "temperature": 70.0,
+      "floor": 0.24,
+      "fam_low_sim": 0.24,
+      "fam_high_sim": 0.33
+    }
+  },
+  {
+    "file": "preflight__001.png",
+    "true_label": "preflight",
+    "cls": "clear",
+    "shape": [
+      576,
+      768,
+      3
+    ],
+    "mean_px": 155.39,
+    "edge_density": 0.04287,
+    "passes_presence": true,
+    "raw_top_sim": 0.23,
+    "raw_top_label": "glasses",
+    "raw_anchor_sim": 0.2233,
+    "anchor_margin": 0.0067,
+    "top5": [
+      {
+        "label": "glasses",
+        "pct": 17.95
+      },
+      {
+        "label": "phone",
+        "pct": 4.5
+      },
+      {
+        "label": "sunglasses",
+        "pct": 3.76
+      },
+      {
+        "label": "baseball cap",
+        "pct": 2.79
+      },
+      {
+        "label": "apple",
+        "pct": 2.11
+      }
+    ],
+    "band": "unknown",
+    "familiarity": 0.0,
+    "tuning": {
+      "temperature": 70.0,
+      "floor": 0.24,
+      "fam_low_sim": 0.24,
+      "fam_high_sim": 0.33
+    }
+  }
+]

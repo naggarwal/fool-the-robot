@@ -10,9 +10,71 @@ and shows two things at once: **which** object it thinks it's looking at, and
 The lesson is one sentence: *AI is a very good guesser, not a know-it-all. It
 only knows what it was shown.*
 
+The booth ran at the event on **Saturday, 15 August 2026**, and it worked. This
+repo is the archived record of it: everything needed to stand the booth back up
+is committed here, and nothing else is. The machine it was built on has been
+wiped.
+
 Full product spec: [`PRD-fool-the-robot.md`](PRD-fool-the-robot.md).
-Current build state: [`docs/STATUS.md`](docs/STATUS.md).
+Build state as of the event: [`docs/STATUS.md`](docs/STATUS.md).
 Operator instructions for event day: [`docs/runbook.md`](docs/runbook.md).
+
+---
+
+## Reinstalling from scratch
+
+Start from nothing — a Mac with no clone, no venv, no model weights:
+
+```bash
+brew install python@3.12          # skip if you already have it
+git clone https://github.com/naggarwal/fool-the-robot.git
+cd fool-the-robot
+./setup.sh
+```
+
+Allow twenty minutes and about 1.7 GB of download. `setup.sh` builds `.venv`
+from `requirements-lock.txt`, pulls the CLIP weights (~700 MB) into the local
+Hugging Face cache so the booth never needs the network again, and then proves
+the machine works rather than assuming it: model loads, `classify()` returns
+guesses, a camera yields a frame, the real server starts and answers `/health`.
+It ends with either **"This laptop is ready to run the booth"** or a list of
+what is wrong. Then `./run.sh`.
+
+Everything that mattered is in the clone — `server.py`, `foolbot/`, `static/`,
+the full 90-label vocabulary and calibrated thresholds in `config/`, the
+runbook, and the signage and checklists in `deliverables/`.
+
+Four things deliberately are **not**, and none of them block a rebuild:
+
+- **The venv and the CLIP weights.** ~1.6 GB of pure download. `setup.sh`
+  fetches both; that is its whole job.
+- **The pre-generated voice cache.** Regenerate with
+  `./.venv/bin/python scripts/pregenerate_voice.py`, or skip it — without the
+  cache the robot speaks through the macOS system voice, which is fine.
+- **Calibration capture frames.** Webcam stills of one room under one set of
+  lights; they do not transfer to another room. The *measurements* taken from
+  them are kept: per-frame numbers in
+  `calib/archive-2026-07-26/manifest.json`, and the reasoning that produced the
+  shipped thresholds in
+  [`docs/calibration-2026-07-26.md`](docs/calibration-2026-07-26.md).
+  Top-level `calib/manifest.json` is `[]` — an empty slate for the next round.
+- **UI screenshots.** Documentation only, and they show the room they were
+  taken in.
+
+The one thing a rebuild genuinely needs a human for is **recalibration**. The
+thresholds in `config/settings.yaml` (temperature 55, the similarity floor) were
+measured on one webcam in one room. On different hardware or in different light,
+re-run a capture round with real objects in hand:
+
+```bash
+FOOLBOT_DEBUG=1 ./run.sh
+./.venv/bin/python scripts/capture_round.py
+```
+
+[`docs/second-laptop.md`](docs/second-laptop.md) walks through the whole
+build-a-fresh-booth path, recalibration included, and
+[`docs/calibration-2026-07-26.md`](docs/calibration-2026-07-26.md) records how
+the shipped numbers were arrived at.
 
 ---
 
@@ -22,11 +84,10 @@ This repo currently contains the **confidence core**: camera → CLIP zero-shot 
 calibrated confidence bars → familiarity gauge, live in a browser, with tuning
 sliders. Calibration against real objects is complete (temperature 55).
 
-Landing alongside it, in their own modules but **not yet wired into
-`server.py`**: `foolbot/voice.py` (three-tier speech engine),
-`config/phrases.yaml` (every line the robot can say), `scripts/calibrate.py`
-(the temperature sweep). They import and run standalone; nothing in the request
-path calls them yet.
+Wired in alongside it: `foolbot/voice.py` (three-tier speech engine) speaking
+the lines in `config/phrases.yaml`, and the animated robot face.
+`scripts/calibrate.py` (the temperature sweep) and `scripts/capture_round.py`
+run standalone, outside the request path.
 
 There is an **arm gate**: `O` (or the on-screen button) switches the robot off
 and on, and holding `Space` while it is off buys one look for as long as the key
@@ -35,10 +96,9 @@ the camera keeps running so switching back on is instant. The gate lives on the
 server and is echoed in every WS frame, so the screen shows what the engine is
 actually doing rather than what the last keypress asked for.
 
-Not built at all, all specified in the PRD: robot face, on-screen challenge
-cards, fool detection, celebration, leaderboard, face detection and person
-deflection, the rest of the operator view, `scripts/pregenerate_voice.py`,
-`run.bat`.
+Not built at all, all specified in the PRD: on-screen challenge cards, fool
+detection, celebration, leaderboard, face detection and person deflection, the
+rest of the operator view, `run.bat`.
 
 `config/challenges.yaml` exists as a data file but **nothing reads it yet**.
 Until the front end consumes it, challenge cards are run off paper or off the
