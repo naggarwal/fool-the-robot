@@ -17,7 +17,6 @@ and the `.bat` equivalents do not exist yet.
 ```bash
 git clone https://github.com/naggarwal/fool-the-robot.git
 cd fool-the-robot
-git checkout calibration-and-production-core
 ./setup.sh
 ```
 
