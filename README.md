@@ -41,7 +41,8 @@ It ends with either **"This laptop is ready to run the booth"** or a list of
 what is wrong. Then `./run.sh`.
 
 Everything that mattered is in the clone — `server.py`, `foolbot/`, `static/`,
-the full 90-label vocabulary and calibrated thresholds in `config/`, the
+the full 90-label vocabulary and the thresholds it shipped with in `config/`,
+the
 runbook, and the signage and checklists in `deliverables/`.
 
 Four things deliberately are **not**, and none of them block a rebuild:
@@ -61,10 +62,14 @@ Four things deliberately are **not**, and none of them block a rebuild:
 - **UI screenshots.** Documentation only, and they show the room they were
   taken in.
 
-The one thing a rebuild genuinely needs a human for is **recalibration**. The
-thresholds in `config/settings.yaml` (temperature 55, the similarity floor) were
-measured on one webcam in one room. On different hardware or in different light,
-re-run a capture round with real objects in hand:
+The one thing a rebuild genuinely needs a human for is **recalibration**, and it
+matters more than the shipped `config/settings.yaml` might suggest. Temperature
+was *measured* at 55 against a 52-prompt vocabulary; the current `70` is an
+**estimate** carried over when the vocabulary grew to 90 labels, and
+`similarity_floor: 0.24` is inert — it never fires. The file says so in its own
+comments. Those numbers ran a good booth, but they are a starting point on a new
+webcam in a new room, not an answer. Re-run a capture round with real objects in
+hand — one terminal each:
 
 ```bash
 FOOLBOT_DEBUG=1 ./run.sh
@@ -82,7 +87,8 @@ the shipped numbers were arrived at.
 
 This repo currently contains the **confidence core**: camera → CLIP zero-shot →
 calibrated confidence bars → familiarity gauge, live in a browser, with tuning
-sliders. Calibration against real objects is complete (temperature 55).
+sliders. Calibration against real objects was done at 52 prompts; the
+vocabulary has since grown to 90 and the temperature has not been re-measured.
 
 Wired in alongside it: `foolbot/voice.py` (three-tier speech engine) speaking
 the lines in `config/phrases.yaml`, and the animated robot face.
@@ -116,7 +122,7 @@ section is a snapshot.
   otherwise.
 - Python 3.12
 - A USB webcam
-- ~350 MB of disk for the CLIP ViT-B/32 weights, downloaded once on first run
+- ~600 MB of disk for the CLIP ViT-B/32 weights, downloaded once on first run
   and cached locally. After that the booth is fully offline.
 
 ## Setup
@@ -160,8 +166,8 @@ instant.
 
 That starts uvicorn on `127.0.0.1:8000`, polls `/health` until the server is
 ready, then opens Google Chrome at the booth page. It passes
-`--autoplay-policy=no-user-gesture-required` so that browser audio will be
-possible when the voice tier lands. It does **not** launch Chrome in kiosk
+`--autoplay-policy=no-user-gesture-required` so browser audio can play without
+a click. It does **not** launch Chrome in kiosk
 mode — press `Cmd+Ctrl+F` for fullscreen once the page is up.
 
 Stop with `Ctrl+C` in the launching terminal, or from anywhere:
